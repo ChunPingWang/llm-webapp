@@ -1,0 +1,13 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+atm-bdd,com.example.atm.domain.exception,CardNotFoundException,4,0,0,0,2,0,1,0,1,0
+atm-bdd,com.example.atm.domain.exception,InvalidPinFormatException,0,4,0,0,0,2,0,1,0,1
+atm-bdd,com.example.atm.domain.exception,InsufficientFundsException,0,4,0,0,0,2,0,1,0,1
+atm-bdd,com.example.atm.application,WithdrawalResult,0,33,0,0,0,6,0,1,0,1
+atm-bdd,com.example.atm.application,AtmService,0,78,0,6,0,23,0,8,0,5
+atm-bdd,com.example.atm.application,AtmSession,0,47,0,4,0,14,0,9,0,7
+atm-bdd,com.example.atm.infrastructure,SimpleCashDispenser,0,13,0,0,0,5,0,3,0,3
+atm-bdd,com.example.atm.infrastructure,InMemoryAccountRepository,0,29,0,2,0,7,0,4,0,3
+atm-bdd,com.example.atm.domain.model,Money,0,75,0,6,0,13,0,10,0,7
+atm-bdd,com.example.atm.domain.model,Account,0,84,0,8,0,18,0,10,0,6
+atm-bdd,com.example.atm.domain.model,Pin,0,29,0,2,0,7,0,4,0,3
+atm-bdd,com.example.atm.domain.model,CardNumber,0,23,0,2,0,6,0,3,0,2

@@ -11,6 +11,8 @@ spring:
           model: ${llmagent.chat.default-model-id}
           # ICA(litellm)對 Claude 僅接受 temperature=1;覆寫 Spring AI 預設 0.7 以免 400。
           temperature: 1.0
+          # 提高輸出上限,避免完整程式碼/文件產出被預設 4096 截斷(ICA 對 claude-opus-4-8 可達 64000)。
+          max-tokens: 32000
       # 平台僅用 chat;避免 embedding 自動設定要求額外參數。
       embedding:
         enabled: false
@@ -32,9 +34,18 @@ llmagent:
   chat:
     # ICA 可用 Claude 中最新旗艦。
     default-model-id: claude-opus-4-8
-    default-system-prompt: >-
-      你是一位專業的軟體工程助理。回答精確、簡潔;程式碼一律以 Markdown code fence 呈現
-      (例如 ```java 或 ```gherkin),Gherkin 使用繁體中文關鍵字(功能:/場景:/假設/當/那麼)。
+    # SDLC Agent system prompt。強化 BDD/DDD/SOLID 產出準確度(可調)。
+    default-system-prompt: |-
+      你是一位資深軟體工程 Agent,專精 BDD、DDD 與 SOLID,精通 Java 21 與 Cucumber。請嚴格遵守:
+
+      1. 產生 Gherkin 時,一律使用繁體中文關鍵字(功能:、場景:、場景大綱:、假設、當、那麼、而且、但是),
+         並同時涵蓋正向(happy path)與反向(密碼錯誤、餘額不足等)情境;每份 .feature 以 ```gherkin 區塊呈現,
+         且在區塊第一行以註解標明檔名(例如 # language: zh-TW 之後接 檔名)。
+      2. 產生程式碼時,輸出完整可編譯的檔案。每個檔案獨立一個 code fence,並在 fence 內第一行以註解標明相對路徑
+         (例如 // src/main/java/com/example/atm/domain/Account.java);遵循 DDD 分層(domain / application / infrastructure)
+         與 SOLID 原則,提供對應的 Cucumber step definitions、JUnit 5 test runner 與必要單元測試,力求測試涵蓋率 ≥ 80%。
+      3. 需要產生文件時,以結構化 Markdown(標題階層、表格、清單)呈現,內容完整、可直接轉為 Word。
+      4. 回答精確、聚焦、不冗長;一律使用 Java 21 語法;避免省略(不要用「...」略過實作)。
   providers:
     ica:
       type: OPENAI_COMPATIBLE
