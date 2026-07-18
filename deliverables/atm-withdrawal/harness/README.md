@@ -7,3 +7,10 @@
 
 前置:webapp 後端(:8080)與前端(:5173)已啟動;`npm i playwright && npx playwright install chromium`;`pip install python-docx`。
 webm→mp4:`ffmpeg -i in.webm -c:v libopenh264 -pix_fmt yuv420p -b:v 1200k out.mp4`
+
+## 字幕(步驟標示)
+
+`steps.ass` 依實際串流時間軸標示三步驟。燒錄:
+```bash
+ffmpeg -i demo.mp4 -vf "subtitles=steps.ass" -c:v libopenh264 -pix_fmt yuv420p -b:v 1300k demo-subtitled.mp4
+```
