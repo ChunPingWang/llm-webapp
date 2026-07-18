@@ -36,6 +36,25 @@ export async function saveAgentProfile(
   return res.json();
 }
 
+export interface ServerArtifact {
+  id: string;
+  messageId: string;
+  type: "GHERKIN" | "JAVA" | "MARKDOWN" | "DOCX";
+  language: string;
+  content: string;
+  version: number;
+}
+
+/** 該對話中某型別產出物的全部版本(舊→新),供版本 diff(WP5-T3)。 */
+export async function fetchArtifactVersions(
+  conversationId: string,
+  type: ServerArtifact["type"],
+): Promise<ServerArtifact[]> {
+  const res = await fetch(`/api/conversations/${conversationId}/artifacts?type=${type}`);
+  if (!res.ok) throw new Error(`fetchArtifactVersions failed: ${res.status}`);
+  return res.json();
+}
+
 export interface Settings {
   systemPrompt: string;
   baseUrl: string;

@@ -37,15 +37,21 @@ public class ChatService {
     private final ConversationStore store;
     private final RuntimeSettingsService settings;
     private final AgentProfileService agentProfiles;
+    private final ArtifactService artifacts;
+    private final com.example.llmagent.application.port.out.AuditLogStore auditLog;
 
     public ChatService(ChatModelPort chatModelPort,
                        ConversationStore store,
                        RuntimeSettingsService settings,
-                       AgentProfileService agentProfiles) {
+                       AgentProfileService agentProfiles,
+                       ArtifactService artifacts,
+                       com.example.llmagent.application.port.out.AuditLogStore auditLog) {
         this.chatModelPort = chatModelPort;
         this.store = store;
         this.settings = settings;
         this.agentProfiles = agentProfiles;
+        this.artifacts = artifacts;
+        this.auditLog = auditLog;
     }
 
     /**
@@ -129,9 +135,21 @@ public class ChatService {
                 for (Segment s : parser.flush()) {
                     appendSegment(evs, assistant, s);
                 }
-                c.addMessage(Message.assistant(
-                        UUID.randomUUID().toString(), model, assistant.toString(), Instant.now()));
+                String assistantMsgId = UUID.randomUUID().toString();
+                c.addMessage(Message.assistant(assistantMsgId, model, assistant.toString(), Instant.now()));
                 store.save(c);
+
+                // 產出物抽取(WP5-T1):訊息落庫後執行,版本化入庫;降級記 WARN
+                ArtifactService.ExtractResult extracted =
+                        artifacts.extractAndStore(c.id(), assistantMsgId, assistant.toString());
+                if (extracted.degraded()) {
+                    evs.add(StreamEvent.log("WARN", "artifact",
+                            "code fence 格式偏差,整段降級為 MARKDOWN 產出物", ts()));
+                }
+                for (var a : extracted.artifacts()) {
+                    evs.add(StreamEvent.log("INFO", "artifact",
+                            "產出物 " + a.type() + " v" + a.version() + " (" + a.id().substring(0, 8) + ")", ts()));
+                }
 
                 Usage u = usageRef.get();
                 long elapsed = System.currentTimeMillis() - start;
@@ -149,8 +167,25 @@ public class ChatService {
                             StreamEvent.log("ERROR", "provider",
                                     "串流失敗:" + err.getMessage(), ts()),
                             StreamEvent.done(new DoneInfo(new UsageInfo(0, 0),
-                                    System.currentTimeMillis() - start, Math.max(ttft.get(), 0)))));
+                                    System.currentTimeMillis() - start, Math.max(ttft.get(), 0)))))
+                    // 稽核落地(WP4-T3):log/done 事件同步寫入 audit_logs
+                    .doOnNext(ev -> audit(c.id(), ev));
         });
+    }
+
+    private void audit(String conversationId, StreamEvent ev) {
+        try {
+            switch (ev.type()) {
+                case LOG -> {
+                    StreamEvent.LogLine l = (StreamEvent.LogLine) ev.payload();
+                    auditLog.append(conversationId, l.level(), l.source(), l.msg());
+                }
+                case DONE -> auditLog.append(conversationId, "INFO", "done", String.valueOf(ev.payload()));
+                default -> { /* thinking/content 不落稽核,量大且屬內容而非事件 */ }
+            }
+        } catch (Exception ignore) {
+            // 稽核失敗不阻斷對話串流
+        }
     }
 
     private void appendSegment(List<StreamEvent> evs, StringBuilder assistant, Segment s) {

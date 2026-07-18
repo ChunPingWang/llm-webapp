@@ -223,6 +223,7 @@ export function App() {
             {tab === "artifacts" && (
               <ArtifactPanel
                 sourceMarkdown={lastAssistant?.content ?? ""}
+                conversationId={convId.current}
                 onExpand={() => setModal("code")}
               />
             )}

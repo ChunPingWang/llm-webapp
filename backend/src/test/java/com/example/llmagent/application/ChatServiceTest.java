@@ -35,7 +35,9 @@ class ChatServiceTest {
 
         InMemoryConversationStore store = new InMemoryConversationStore();
         ChatService service = new ChatService(fakePort, store, settings,
-                new AgentProfileService(new com.example.llmagent.adapter.out.persistence.InMemoryAgentProfileStore()));
+                new AgentProfileService(new com.example.llmagent.adapter.out.persistence.InMemoryAgentProfileStore()),
+                new ArtifactService(new com.example.llmagent.adapter.out.persistence.InMemoryArtifactStore()),
+                new com.example.llmagent.adapter.out.persistence.InMemoryAuditLogStore());
 
         Conversation c = service.createConversation("t", null, null, null, null, null);
         String messageId = service.addUserMessage(c.id(), "hi");
