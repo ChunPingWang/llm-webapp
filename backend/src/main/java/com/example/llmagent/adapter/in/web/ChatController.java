@@ -53,7 +53,8 @@ public class ChatController {
     @ResponseStatus(HttpStatus.CREATED)
     public PostMessageResponse postMessage(@PathVariable String conversationId,
                                            @Valid @RequestBody PostMessageRequest req) {
-        String messageId = chatService.addUserMessage(conversationId, req.content());
+        String messageId = chatService.addUserMessage(conversationId, req.content(),
+                req.modelId(), req.agentProfileId(), req.promptVariables());
         return new PostMessageResponse(messageId);
     }
 

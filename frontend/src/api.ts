@@ -118,15 +118,63 @@ export async function createConversation(
   return (await res.json()).conversationId;
 }
 
-/** 送出使用者訊息,回傳 messageId(串流另走 stream)。 */
-export async function postMessage(conversationId: string, content: string): Promise<string> {
+/** 送出使用者訊息,回傳 messageId。modelId / agentProfileId 為對話中切換(WP3-T3)。 */
+export async function postMessage(
+  conversationId: string,
+  content: string,
+  modelId?: string,
+  agentProfileId?: string,
+  promptVariables?: Record<string, string>,
+): Promise<string> {
   const res = await fetch(`/api/conversations/${conversationId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, modelId, agentProfileId, promptVariables }),
   });
   if (!res.ok) throw new Error(`postMessage failed: ${res.status}`);
   return (await res.json()).messageId;
+}
+
+export interface ProviderInfo {
+  id: string;
+  type: "OLLAMA" | "OPENAI_COMPATIBLE" | "ANTHROPIC";
+  baseUrl: string;
+  apiKeyRef: string | null;
+  enabled: boolean;
+}
+
+export async function fetchProviders(): Promise<ProviderInfo[]> {
+  const res = await fetch("/api/providers");
+  if (!res.ok) throw new Error(`fetchProviders failed: ${res.status}`);
+  return res.json();
+}
+
+export async function registerProvider(p: {
+  id: string;
+  type: string;
+  baseUrl: string;
+  apiKeyRef?: string;
+}): Promise<ProviderInfo> {
+  const res = await fetch("/api/providers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(p),
+  });
+  if (!res.ok) throw new Error(`registerProvider failed: ${res.status}`);
+  return res.json();
+}
+
+export interface ProviderTestResult {
+  ok: boolean;
+  latencyMs: number;
+  models: number;
+  error: string | null;
+}
+
+export async function testProvider(id: string): Promise<ProviderTestResult> {
+  const res = await fetch(`/api/providers/${id}/test`, { method: "POST" });
+  if (!res.ok) throw new Error(`testProvider failed: ${res.status}`);
+  return res.json();
 }
 
 export interface StreamHandlers {

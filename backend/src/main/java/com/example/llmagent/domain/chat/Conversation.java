@@ -14,8 +14,8 @@ public class Conversation {
 
     private final String id;
     private final String title;
-    private final String systemPrompt;
-    private final String defaultModelId;
+    private String systemPrompt;
+    private String defaultModelId;
     private final Double temperature;
     private final Instant createdAt;
     private final List<Message> messages = new ArrayList<>();
@@ -28,6 +28,16 @@ public class Conversation {
         this.defaultModelId = defaultModelId;
         this.temperature = temperature;
         this.createdAt = createdAt;
+    }
+
+    /** 對話中切換模型(WP3-T3):之後的回覆改用新模型。 */
+    public void switchModel(String modelId) {
+        this.defaultModelId = modelId;
+    }
+
+    /** 對話中切換 Agent(WP3-T3):之後的回覆改用新 system prompt。 */
+    public void switchSystemPrompt(String systemPrompt) {
+        this.systemPrompt = systemPrompt;
     }
 
     public String id() {

@@ -25,11 +25,12 @@ public final class ChatDtos {
             String title) {
     }
 
-    /** POST /api/conversations/{id}/messages 請求。 */
+    /** POST /api/conversations/{id}/messages 請求。modelId / agentProfileId 為對話中切換(WP3-T3)。 */
     public record PostMessageRequest(
             @NotBlank String content,
             String modelId,
-            String agentProfileId) {
+            String agentProfileId,
+            java.util.Map<String, String> promptVariables) {
     }
 
     /** POST /api/conversations/{id}/messages 回應。 */

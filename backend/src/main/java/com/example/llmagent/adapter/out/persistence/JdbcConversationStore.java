@@ -38,7 +38,10 @@ public class JdbcConversationStore implements ConversationStore {
         jdbc.update("""
                 INSERT INTO conversations (id, title, system_prompt, default_model_id, temperature, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title
+                ON CONFLICT (id) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    system_prompt = EXCLUDED.system_prompt,
+                    default_model_id = EXCLUDED.default_model_id
                 """,
                 UUID.fromString(c.id()), c.title(), c.systemPrompt(), c.defaultModelId(),
                 c.temperature(), Timestamp.from(c.createdAt()));
@@ -47,12 +50,15 @@ public class JdbcConversationStore implements ConversationStore {
         for (int i = 0; i < messages.size(); i++) {
             Message m = messages.get(i);
             jdbc.update("""
-                    INSERT INTO messages (id, conversation_id, seq, role, model_id, content, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO messages
+                        (id, conversation_id, seq, role, model_id, agent_profile_id, agent_profile_version, content, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (id) DO NOTHING
                     """,
                     UUID.fromString(m.id()), UUID.fromString(c.id()), i,
-                    m.role().name(), m.modelId(), m.content(), Timestamp.from(m.createdAt()));
+                    m.role().name(), m.modelId(),
+                    m.agentProfileId() == null ? null : UUID.fromString(m.agentProfileId()),
+                    m.agentProfileVersion(), m.content(), Timestamp.from(m.createdAt()));
         }
     }
 
@@ -76,7 +82,7 @@ public class JdbcConversationStore implements ConversationStore {
         }
         Conversation c = found.get(0);
         jdbc.query("""
-                SELECT id, role, model_id, content, created_at
+                SELECT id, role, model_id, agent_profile_id, agent_profile_version, content, created_at
                 FROM messages WHERE conversation_id = ? ORDER BY seq
                 """,
                 rs -> {
@@ -85,6 +91,8 @@ public class JdbcConversationStore implements ConversationStore {
                             rs.getString("id"),
                             Role.valueOf(rs.getString("role")),
                             rs.getString("model_id"),
+                            rs.getString("agent_profile_id"),
+                            rs.getObject("agent_profile_version", Integer.class),
                             rs.getString("content"),
                             at));
                 },

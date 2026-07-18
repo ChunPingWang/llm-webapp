@@ -21,8 +21,9 @@
 
 ## Phase 1 — Provider 與 Agent Profile(WP2)
 
-- [ ] **WP2-T1** ProviderRegistry + 設定載入(OLLAMA / OPENAI_COMPATIBLE / ANTHROPIC)`deps: [WP1-T3]`
-  - 驗收:三型 Provider 可註冊;apiKey 僅接受環境變數參照(ADR-001)
+- [x] **WP2-T1** ProviderRegistry + 設定載入(OLLAMA / OPENAI_COMPATIBLE / ANTHROPIC)`deps: [WP1-T3]` ✅
+  - 驗收:三型 Provider 可註冊;apiKey 僅接受環境變數「名稱」參照(明碼 sk- 開頭直接拒絕,ADR-001);
+    InMemory/Jdbc 雙 store + ica 種子
 - [x] **WP2-T2** 模型清單動態拉取 API `GET /api/providers/{id}/models` `deps: [WP2-T1]` — Step 4
   - 驗收:WireMock 模擬 Ollama `/api/tags` 與 OpenAI `/v1/models`;timeout 3s 快速失敗 ✅
   - 實作:IcaModelCatalogAdapter(WebClient,3s timeout,錯誤→空串流)、ModelService(Claude 置前)、ProviderController;WireMock 4 例(解析/未知 provider/500 快速失敗/5s 逾時)通過;前端模型選擇器改為動態拉取(後備清單容錯)。Live 驗證 ICA 回 18 模型 ✅
@@ -31,7 +32,8 @@
     InMemory/Jdbc 雙 store;內建三 Profile 種子:BDD 規格 / Java 產碼 / Code Review)
 - [x] **WP2-T4** PromptTemplate 變數套用(`{project_name}`、`{gherkin_locale}`)`deps: [WP2-T3]`
   - 驗收:缺變數時明確錯誤(400,列出全部缺漏)✅;套用結果單元測試驗證 ✅
-- [ ] **WP2-T5** Provider 管理 UI + 連線測試按鈕 `deps: [WP2-T2]`
+- [x] **WP2-T5** Provider 管理 UI + 連線測試按鈕 `deps: [WP2-T2]` ✅
+  - POST /api/providers/{id}/test(reactive,3s 逾時);UI 表格 + 新增表單 + 測試按鈕;live 驗證 ok/568ms/18 模型
 - [x] **WP2-T6** Agent Profile 管理 UI(含版本歷史檢視)`deps: [WP2-T3]` ✅
   - 頂欄 Agent 選擇器 + 管理浮動視窗(清單/編輯→新版本/版本歷史 details 展開)
 
@@ -42,7 +44,9 @@
   - 實作:`POST /api/conversations` → `POST /api/conversations/{id}/messages` → `GET /api/messages/{id}/stream`(依 openapi.yaml)。ICA(claude-opus-4-8)串流 e2e 驗證通過,thinking/content/log/done 事件正確 ✅
 - [x] **WP3-T2** Chat Panel UI:串流渲染 + Markdown + Shiki 高亮 `deps: [WP3-T1]` — Step 3
   - 實作:React 三欄式(對話 / Artifacts / 日誌);react-markdown + rehype-highlight(Shiki 可後續替換);串流游標 ✅
-- [~] **WP3-T3** 對話中切換模型/Agent Profile `deps: [WP3-T1]` — Step 3(部分:頂欄模型選擇器,對話級切換;訊息級切換待後端支援)
+- [x] **WP3-T3** 對話中切換模型/Agent Profile `deps: [WP3-T1]` ✅
+  - postMessage 支援 modelId/agentProfileId/promptVariables 覆寫,自該訊息起生效;
+    訊息記錄 model_id 與 agent_profile_id+version(live 驗證:同一對話 opus→haiku,DB 逐訊息追溯)
 - [x] **WP4-T1** ThinkingParser:`<think>` 標籤分流為 `thinking` 事件(後端,ADR-003)`deps: [WP3-T1]` — Step 2
   - 驗收:DeepSeek-R1/Qwen3 標籤樣本測試集全過;不完整標籤容錯 ✅(跨 chunk 切斷、未閉合、`<` 非標籤等單元測試通過)
 - [x] **WP4-T2** Thinking 區塊 UI(串流展開、完成自動收合)`deps: [WP4-T1, WP3-T2]` — Step 3 ✅
@@ -58,8 +62,7 @@
 - [x] **WP5-T1** ArtifactService:fence 抽取(gherkin/java)+ 版本化 + 降級策略(ADR-005)`deps: [WP3-T1]`
   - 驗收:格式偏差樣本(未閉合 fence)降級為 MARKDOWN 並記 WARN ✅(ArtifactExtractorTest/ArtifactServiceTest);
     版本以「對話 × 型別」遞增,live 驗證 GHERKIN v1→v2;端點 by-message/versions/download(附檔名)✅
-- [~] **WP5-T2** Artifact Panel UI:高亮、複製、下載(.feature/.java/.md)`deps: [WP5-T1]` — Step 3(前端)
-  - 前端已完成:自 assistant Markdown 抽取 Gherkin/Java code fence,高亮、複製、下載 .feature/.java;後端 ArtifactService 版本化待 WP5-T1
+- [x] **WP5-T2** Artifact Panel UI:高亮、複製、下載(.feature/.java/.md)`deps: [WP5-T1]` ✅(後端版本化已於 WP5-T1 完成)
 - [x] **WP5-T3** Artifact 版本 diff 檢視 `deps: [WP5-T2]` ✅
   - 端點 GET /api/conversations/{id}/artifacts?type=;前端 LCS 行級 diff(新增綠/刪除紅)
 - [ ] **WP6-T1** 檔案上傳 + MinIO 儲存(pre-signed URL)`deps: [WP1-T2, WP1-T3]`

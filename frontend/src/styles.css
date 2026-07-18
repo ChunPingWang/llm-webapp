@@ -338,6 +338,27 @@ button:disabled { opacity: 0.55; cursor: default; }
   font-size: 0.9rem;
 }
 
+/* Provider 管理 */
+.providers-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.providers-table th, .providers-table td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+.providers-table .mono { font-family: ui-monospace, monospace; font-size: 0.78rem; }
+.test-ok { color: #059669; font-size: 0.8rem; }
+.test-fail { color: var(--error); font-size: 0.8rem; }
+.provider-form { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.provider-form input, .provider-form select {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+}
+.provider-form input { flex: 1; min-width: 160px; }
+
 /* 版本 diff(WP5-T3) */
 .diff-view {
   border: 1px solid var(--border);

@@ -83,9 +83,31 @@ public class ChatService {
 
     /** 記錄使用者訊息,回傳 messageId(供 /stream 消費)。 */
     public String addUserMessage(String conversationId, String content) {
+        return addUserMessage(conversationId, content, null, null, null);
+    }
+
+    /**
+     * 記錄使用者訊息,可於對話中切換模型 / Agent Profile(WP3-T3):
+     * 覆寫自本則訊息起生效,並記錄於訊息(model_id / agent_profile_id+version)供追溯。
+     */
+    public String addUserMessage(String conversationId, String content,
+                                 String modelId, String agentProfileId,
+                                 java.util.Map<String, String> promptVariables) {
         Conversation c = store.findById(conversationId)
                 .orElseThrow(() -> new IllegalArgumentException("conversation not found: " + conversationId));
-        Message m = Message.user(UUID.randomUUID().toString(), content, Instant.now());
+        Integer profileVersion = null;
+        if (modelId != null && !modelId.isBlank()) {
+            c.switchModel(modelId);
+        }
+        if (agentProfileId != null && !agentProfileId.isBlank()) {
+            c.switchSystemPrompt(agentProfiles.renderPrompt(agentProfileId, promptVariables));
+            profileVersion = agentProfiles.findLatest(agentProfileId)
+                    .map(p -> p.version()).orElse(null);
+        }
+        Message m = Message.user(UUID.randomUUID().toString(), content,
+                modelId == null || modelId.isBlank() ? null : modelId,
+                agentProfileId == null || agentProfileId.isBlank() ? null : agentProfileId,
+                profileVersion, Instant.now());
         c.addMessage(m);
         store.save(c);
         return m.id();

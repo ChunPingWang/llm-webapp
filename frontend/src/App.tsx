@@ -8,6 +8,7 @@ import {
   type AgentProfile,
 } from "./api";
 import { AgentProfilesModal } from "./components/AgentProfilesModal";
+import { ProvidersModal } from "./components/ProvidersModal";
 import { MessageView } from "./components/MessageView";
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { LogPanel } from "./components/LogPanel";
@@ -50,7 +51,7 @@ export function App() {
   const [model, setModel] = useState(PREFERRED_DEFAULT);
   const [sending, setSending] = useState(false);
   const [tab, setTab] = useState<Tab>("artifacts");
-  const [modal, setModal] = useState<null | "word" | "code" | "settings" | "profiles">(null);
+  const [modal, setModal] = useState<null | "word" | "code" | "settings" | "profiles" | "providers">(null);
   const [profiles, setProfiles] = useState<AgentProfile[]>([]);
   const [profileId, setProfileId] = useState<string>(""); // "" = 全域預設 prompt
   const convId = useRef<string | null>(null);
@@ -95,15 +96,15 @@ export function App() {
     setInput("");
 
     try {
-      // 模型或 Agent Profile 變更 → 開新對話(訊息級切換見 WP3-T3)
-      const key = `${model}|${profileId}`;
-      if (!convId.current || convKey.current !== key) {
-        convId.current = await createConversation(model, profileId || undefined, {
-          project_name: "llm-webapp",
-          gherkin_locale: "zh-TW",
-        });
-        convKey.current = key;
+      const vars = { project_name: "llm-webapp", gherkin_locale: "zh-TW" };
+      if (!convId.current) {
+        convId.current = await createConversation(model, profileId || undefined, vars);
+        convKey.current = `${model}|${profileId}`;
       }
+      // 對話中切換模型 / Agent(WP3-T3):同一對話,覆寫隨訊息送出
+      const key = `${model}|${profileId}`;
+      const switched = convKey.current !== key;
+      convKey.current = key;
       const userMsg: ChatMessage = {
         id: nextId(), role: "user", content: text, thinking: "", logs: [], streaming: false,
       };
@@ -114,7 +115,13 @@ export function App() {
       };
       setMessages((prev) => [...prev, userMsg, assistant]);
 
-      const messageId = await postMessage(convId.current, text);
+      const messageId = await postMessage(
+        convId.current,
+        text,
+        switched ? model : undefined,
+        switched && profileId ? profileId : undefined,
+        switched && profileId ? vars : undefined,
+      );
 
       esRef.current = streamMessage(messageId, {
         onThinking: (d) => patch(assistantId, (m) => ({ ...m, thinking: m.thinking + d })),
@@ -168,6 +175,9 @@ export function App() {
             ))}
           </select>
           <span className="provider-tag">ICA · {models.length} 模型</span>
+          <button className="settings-btn" onClick={() => setModal("providers")} title="Provider 管理與連線測試">
+            Provider
+          </button>
           <button
             className="settings-btn"
             onClick={() => setModal("settings")}
@@ -255,6 +265,7 @@ export function App() {
       )}
       {modal === "settings" && <SettingsModal onClose={() => setModal(null)} />}
       {modal === "profiles" && <AgentProfilesModal onClose={() => setModal(null)} />}
+      {modal === "providers" && <ProvidersModal onClose={() => setModal(null)} />}
     </div>
   );
 }
