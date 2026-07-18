@@ -1,6 +1,13 @@
 spring:
   application:
     name: llm-agent-backend
+  # 持久化(WP1-T3):預設 in-memory;啟用 postgres profile 改用 PostgreSQL + Flyway。
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/llmagent}
+    username: ${POSTGRES_USER:llmagent}
+    password: ${POSTGRES_PASSWORD:llmagent}
+  flyway:
+    enabled: false
   ai:
     openai:
       # ICA OpenAI-Compatible Gateway。base-url 後接 /v1/chat/completions。
@@ -25,6 +32,10 @@ management:
     web:
       exposure:
         include: health,info
+  health:
+    db:
+      # 預設(in-memory 模式)不檢查 DB;postgres profile 開啟。
+      enabled: false
 
 # Provider 設定(ADR-001)。apiKey 一律以環境變數參照,禁止明碼(CLAUDE.md #8)。
 # ICA 為 OpenAI-Compatible Gateway;預設模型使用 ICA 最新 Claude。

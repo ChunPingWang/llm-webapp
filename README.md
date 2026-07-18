@@ -56,7 +56,17 @@ docker compose -f docker/compose.yaml up -d
 - [x] **Step 2 — ICA Provider + Chat 串流(WP3-T1 後端 / WP4-T1)**:透過 Spring AI 呼叫 ICA `claude-opus-4-8`,五型 SSE 事件、ThinkingParser、TTFT/token 用量;e2e 驗證通過
 - [x] **Step 3 — Chat UI(WP3-T2 / WP4-T2 / WP5-T2 前端)**:三欄式介面(對話 / Artifacts / 日誌)、串流渲染、Thinking 摺疊區塊、Markdown + 語法高亮、Gherkin/Java 產出物抽取與下載、模型選擇器
 - [x] **Step 4 — 動態模型清單(WP2-T2)**:`GET /api/providers/ica/models` 從 ICA `/v1/models` 拉取(3s timeout 快速失敗、Claude 置前),前端模型選擇器改為動態(後備清單容錯);WireMock 測試 + live 驗證
-- [ ] 後續:Postgres/Flyway 落地(WP1-T3)、Agent Profile、後端 Artifact 版本化、Word 預覽、可觀測性、部署(見 `docs/tasks/TASKS.md`)
+- [x] **Step 5 — Word 產生/預覽(WP6-T2/T3)**:後端 Apache POI `POST /api/docx` + 前端 docx-preview 浮動視窗
+- [x] **Step 6 — 設定視窗**:UI 修改 System Prompt 與 LLM API URL/Token(執行期生效,記憶體保存、token 遮罩)
+- [x] **Step 7 — Postgres 持久化(WP1-T3)**:Flyway V1(六表)+ JdbcConversationStore(`postgres` profile);重啟存活驗證通過
+- [ ] 後續:Agent Profile(WP2-T3+)、後端 Artifact 版本化(WP5-T1)、docx 上傳預覽(WP6-T1/T2)、可觀測性(WP4-T4)、部署(見 `docs/tasks/TASKS.md`)
+
+### 以 Postgres 模式啟動
+
+```bash
+docker compose -f docker/compose.yaml up -d postgres
+SPRING_PROFILES_ACTIVE=postgres ./gradlew bootRun   # 對話跨重啟保存
+```
 
 ## 建置指令
 

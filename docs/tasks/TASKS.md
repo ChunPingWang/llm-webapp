@@ -10,10 +10,12 @@
 
 - [x] **WP1-T1** Monorepo 初始化(backend Gradle Kotlin DSL + frontend Vite)`deps: []` — Step 1
   - 驗收:`./gradlew test` 與 `npm run dev` 可執行;Hexagonal 套件骨架建立 ✅
-- [ ] **WP1-T2** docker/compose.yaml(postgres:16 + minio + ollama + langfuse)`deps: []`
-  - 驗收:`docker compose up -d` 後四服務健康;README 記載各服務 port
-- [ ] **WP1-T3** Flyway migration V1(conversations, messages, artifacts, providers, agent_profiles, audit_logs)`deps: [WP1-T1]`
-  - 驗收:migration 於 Testcontainers Postgres 通過;schema 與規劃書 §6 一致
+- [~] **WP1-T2** docker/compose.yaml(postgres:16 + minio + langfuse)`deps: []` — 部分
+  - compose 已含 postgres/minio/langfuse;postgres 已驗證健康並供 WP1-T3 使用(ollama 非本部署必要,ICA 為主要 Provider)
+- [x] **WP1-T3** Flyway migration V1(conversations, messages, artifacts, providers, agent_profiles, audit_logs)`deps: [WP1-T1]` — Postgres 持久化
+  - 驗收:migration 於 Postgres 通過(整合測試以 compose Postgres 執行,獨立 schema;Testcontainers 可後續補);schema 與規劃書 §6 一致 ✅
+  - 實作:V1__init.sql 六表 + JdbcConversationStore(postgres profile,@Primary);預設仍 in-memory。
+    重啟存活驗證:建立對話 → 重啟後端 → 同一對話續聊,模型正確記得先前內容 ✅
 - [x] **WP1-T4** SSE 骨架:`GET /api/ping/stream` 回傳心跳事件 `deps: [WP1-T1]` — Step 1
   - 驗收:curl 可收到 event-stream;WebTestClient 測試通過 ✅
 

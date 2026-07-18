@@ -1,0 +1,10 @@
+# postgres profile:啟用 Flyway 與 DB 健康檢查(WP1-T3)。
+# 使用:SPRING_PROFILES_ACTIVE=postgres,並先 docker compose -f docker/compose.yaml up -d postgres
+spring:
+  flyway:
+    enabled: true
+
+management:
+  health:
+    db:
+      enabled: true
