@@ -1,0 +1,52 @@
+# 本機基礎設施(WP1-T2)。ICA 為雲端 Provider,不在本 compose 內。
+# 使用:docker compose -f docker/compose.yaml up -d
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: llmagent
+      POSTGRES_PASSWORD: llmagent
+      POSTGRES_DB: llmagent
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U llmagent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # 可觀測性(ADR-007)。首個 vertical slice 可先不啟用。
+  langfuse:
+    image: langfuse/langfuse:2
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://llmagent:llmagent@postgres:5432/llmagent
+      NEXTAUTH_SECRET: dev-secret-change-me
+      NEXTAUTH_URL: http://localhost:3000
+      SALT: dev-salt-change-me
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  miniodata:

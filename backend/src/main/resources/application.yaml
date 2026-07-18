@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: llm-agent-backend
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# Provider 設定(ADR-001)。apiKey 一律以環境變數參照,禁止明碼(CLAUDE.md #8)。
+# ICA 為 OpenAI-Compatible Gateway;預設模型使用 ICA 最新 Claude。
+llmagent:
+  cors:
+    allowed-origins: "http://localhost:5173"
+  providers:
+    ica:
+      type: OPENAI_COMPATIBLE
+      base-url: ${ICA_API_URL}/v1
+      api-key: ${ICA_CLAUDE_KEY}
+      default-model: claude-opus-4-8

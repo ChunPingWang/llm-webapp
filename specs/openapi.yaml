@@ -1,0 +1,247 @@
+openapi: 3.0.3
+info:
+  title: LLM Agent Web Platform API
+  version: 0.1.0
+  description: >
+    契約先行(ADR 見 docs/adr)。新端點先改本檔再實作。
+    SSE 事件 schema 定義於 components(x-sse-events)。
+
+paths:
+  /api/providers:
+    get:
+      summary: 列出 Provider
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Provider" }
+    post:
+      summary: 新增 Provider
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProviderCreate" }
+      responses:
+        "201": { description: Created }
+
+  /api/providers/{providerId}/models:
+    get:
+      summary: 動態拉取模型清單(Ollama /api/tags 或 OpenAI /v1/models)
+      parameters:
+        - { name: providerId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ModelInfo" }
+
+  /api/agent-profiles:
+    get:
+      summary: 列出 Agent Profile
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AgentProfile" }
+    post:
+      summary: 建立 Agent Profile(version=1)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AgentProfileCreate" }
+      responses:
+        "201": { description: Created }
+
+  /api/agent-profiles/{profileId}:
+    put:
+      summary: 更新 Agent Profile(prompt 變更 → 產生新 version,append-only)
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AgentProfileCreate" }
+      responses:
+        "200": { description: OK,回傳含新 version }
+
+  /api/agent-profiles/{profileId}/versions:
+    get:
+      summary: Prompt 版本歷史
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+
+  /api/conversations:
+    post:
+      summary: 建立對話
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentProfileId, modelId]
+              properties:
+                title: { type: string }
+                agentProfileId: { type: string }
+                modelId: { type: string }
+                promptVariables:
+                  type: object
+                  additionalProperties: { type: string }
+      responses:
+        "201": { description: Created }
+
+  /api/conversations/{conversationId}/messages:
+    post:
+      summary: 送出使用者訊息(回傳 messageId,串流另走 /stream)
+      parameters:
+        - { name: conversationId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string }
+                modelId: { type: string, description: 覆寫本則訊息使用之模型 }
+                agentProfileId: { type: string, description: 對話中切換 Agent }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messageId: { type: string }
+
+  /api/messages/{messageId}/stream:
+    get:
+      summary: SSE 串流(text/event-stream;支援 Last-Event-ID 重連)
+      description: |
+        事件型別固定五種(ADR-003):
+        - thinking:{"delta": string}
+        - content: {"delta": string}
+        - tool_call:{"name": string, "arguments": object, "status": "started|finished|error"}
+        - log:     {"level":"INFO|WARN|ERROR","source":string,"msg":string,"ts":string}
+        - done:    {"usage":{"promptTokens":int,"completionTokens":int},"elapsedMs":int,"ttftMs":int}
+      parameters:
+        - { name: messageId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: event-stream
+          content:
+            text/event-stream: {}
+
+  /api/messages/{messageId}/artifacts:
+    get:
+      summary: 該訊息之產出物
+      parameters:
+        - { name: messageId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Artifact" }
+
+  /api/artifacts/{artifactId}/download:
+    get:
+      summary: 下載產出物
+      parameters:
+        - { name: artifactId, in: path, required: true, schema: { type: string } }
+        - name: format
+          in: query
+          schema: { type: string, enum: [feature, java, md, docx] }
+      responses:
+        "200": { description: 檔案串流 }
+
+  /api/files:
+    post:
+      summary: 上傳附件(.docx 等)→ MinIO
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201": { description: 回傳 fileId 與 previewUrl }
+
+  /api/files/{fileId}/preview:
+    get:
+      summary: 取得預覽用 pre-signed URL(前端 docx-preview 消費,ADR-004)
+      parameters:
+        - { name: fileId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+
+components:
+  schemas:
+    Provider:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [OLLAMA, OPENAI_COMPATIBLE, ANTHROPIC] }
+        baseUrl: { type: string }
+        enabled: { type: boolean }
+    ProviderCreate:
+      type: object
+      required: [type, baseUrl]
+      properties:
+        type: { type: string, enum: [OLLAMA, OPENAI_COMPATIBLE, ANTHROPIC] }
+        baseUrl: { type: string }
+        apiKeyRef: { type: string, description: 環境變數/Secret 參照名,禁止明碼 }
+        modelWhitelist:
+          type: array
+          items: { type: string }
+    ModelInfo:
+      type: object
+      properties:
+        id: { type: string }
+        providerId: { type: string }
+        contextLength: { type: integer }
+    AgentProfile:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        version: { type: integer }
+        defaultModelId: { type: string }
+        temperature: { type: number }
+        enabled: { type: boolean }
+    AgentProfileCreate:
+      type: object
+      required: [name, systemPrompt]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        systemPrompt: { type: string, description: 可含 {project_name}、{gherkin_locale} 等變數 }
+        defaultModelId: { type: string }
+        temperature: { type: number }
+        tools:
+          type: array
+          items: { type: string }
+    Artifact:
+      type: object
+      properties:
+        id: { type: string }
+        messageId: { type: string }
+        agentProfileVersion: { type: integer }
+        type: { type: string, enum: [GHERKIN, JAVA, MARKDOWN, DOCX] }
+        language: { type: string }
+        version: { type: integer }
+        content: { type: string }
