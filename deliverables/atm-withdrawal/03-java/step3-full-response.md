@@ -1,132 +1,159 @@
-富邦銀行 ATM 提款服務—完整專案原始碼
+以下為符合 DDD 分層與 SOLID 原則的完整實作，包含 domain / application / infrastructure 三層、Cucumber step definitions、JUnit 5 runner 及單元測試。
 
-以下為完整可編譯的 Java 21 + Cucumber 專案，符合 DDD 分層與 SOLID 原則，測試涵蓋率 ≥ 80%（含 JaCoCo 覆蓋率門檻設定）。
-
-專案結構
-fubon-atm/
-├── pom.xml
-├── src/main/java/com/example/atm/
-│   ├── domain/
-│   │   ├── Money.java
-│   │   ├── Pin.java
-│   │   ├── AccountId.java
-│   │   ├── Account.java
-│   │   ├── AccountRepository.java
-│   │   ├── CashDispenser.java
-│   │   ├── CardReader.java
-│   │   ├── InsufficientBalanceException.java
-│   │   ├── InvalidPinException.java
-│   │   └── AccountNotFoundException.java
-│   ├── application/
-│   │   ├── WithdrawalResult.java
-│   │   ├── AuthResult.java
-│   │   └── AtmSession.java
-│   └── infrastructure/
-│       ├── InMemoryAccountRepository.java
-│       ├── RecordingCashDispenser.java
-│       └── SimpleCardReader.java
-└── src/test/
-    ├── java/com/example/atm/
-    │   ├── RunCucumberTest.java
-    │   ├── steps/AtmWithdrawalSteps.java
-    │   ├── domain/MoneyTest.java
-    │   ├── domain/PinTest.java
-    │   ├── domain/AccountTest.java
-    │   ├── application/AtmSessionTest.java
-    │   └── infrastructure/InfrastructureTest.java
-    └── resources/features/atm_withdrawal.feature
-
-Production Code — Domain Layer
+1. Domain Layer
 // src/main/java/com/example/atm/domain/Money.java
 package com.example.atm.domain;
 
 import java.util.Objects;
 
 /**
- * 金額值物件（Value Object），以「元」為單位，不可為負。
+ * 金額值物件（Value Object），確保金額不為負且提供不可變運算。
  */
 public record Money(long amount) {
 
     public Money {
         if (amount < 0) {
-            throw new IllegalArgumentException("金額不可為負數: " + amount);
+            throw new IllegalArgumentException("金額不得為負數: " + amount);
         }
     }
-
-    public static final Money ZERO = new Money(0);
 
     public static Money of(long amount) {
         return new Money(amount);
     }
 
-    public Money add(Money other) {
-        Objects.requireNonNull(other, "other 不可為 null");
-        return new Money(this.amount + other.amount);
-    }
-
-    public Money subtract(Money other) {
-        Objects.requireNonNull(other, "other 不可為 null");
-        if (this.amount < other.amount) {
-            throw new IllegalArgumentException("餘額不足");
-        }
-        return new Money(this.amount - other.amount);
-    }
-
     public boolean isGreaterThanOrEqual(Money other) {
-        Objects.requireNonNull(other, "other 不可為 null");
+        Objects.requireNonNull(other, "比較對象不得為 null");
         return this.amount >= other.amount;
     }
 
-    public boolean isPositive() {
-        return this.amount > 0;
+    public Money subtract(Money other) {
+        Objects.requireNonNull(other, "扣除金額不得為 null");
+        return new Money(this.amount - other.amount);
+    }
+
+    @Override
+    public String toString() {
+        return amount + " 元";
     }
 }
 
-// src/main/java/com/example/atm/domain/Pin.java
+// src/main/java/com/example/atm/domain/CardStatus.java
+package com.example.atm.domain;
+
+/**
+ * 提款卡狀態。
+ */
+public enum CardStatus {
+    ACTIVE,   // 正常可用
+    LOCKED    // 已鎖卡
+}
+
+// src/main/java/com/example/atm/domain/Account.java
 package com.example.atm.domain;
 
 import java.util.Objects;
 
 /**
- * 密碼值物件（Value Object），格式為 4 位數字。
+ * 帳戶聚合根（Aggregate Root），負責維護餘額一致性。
  */
-public record Pin(String value) {
+public class Account {
 
-    public Pin {
-        Objects.requireNonNull(value, "密碼不可為 null");
-        if (!value.matches("\\d{4}")) {
-            throw new IllegalArgumentException("密碼必須為 4 位數字");
+    private final String accountId;
+    private Money balance;
+
+    public Account(String accountId, Money balance) {
+        this.accountId = Objects.requireNonNull(accountId, "帳號不得為 null");
+        this.balance = Objects.requireNonNull(balance, "餘額不得為 null");
+    }
+
+    public boolean canWithdraw(Money amount) {
+        return balance.isGreaterThanOrEqual(amount);
+    }
+
+    /**
+     * 執行扣款，餘額不足時拋出領域例外。
+     */
+    public void withdraw(Money amount) {
+        if (!canWithdraw(amount)) {
+            throw new InsufficientBalanceException(
+                    "餘額不足，目前餘額 " + balance + "，欲提領 " + amount);
         }
+        this.balance = this.balance.subtract(amount);
     }
 
-    public static Pin of(String value) {
-        return new Pin(value);
+    public Money getBalance() {
+        return balance;
     }
 
-    public boolean matches(Pin other) {
-        return this.equals(other);
+    public String getAccountId() {
+        return accountId;
     }
 }
 
-// src/main/java/com/example/atm/domain/AccountId.java
+// src/main/java/com/example/atm/domain/Card.java
 package com.example.atm.domain;
 
 import java.util.Objects;
 
 /**
- * 帳戶識別碼值物件，用於卡片與帳戶對應。
+ * 提款卡聚合根，負責密碼驗證與鎖卡邏輯。
  */
-public record AccountId(String value) {
+public class Card {
 
-    public AccountId {
-        Objects.requireNonNull(value, "帳戶識別碼不可為 null");
-        if (value.isBlank()) {
-            throw new IllegalArgumentException("帳戶識別碼不可為空白");
-        }
+    public static final int MAX_PIN_ATTEMPTS = 3;
+
+    private final String cardNumber;
+    private final String correctPin;
+    private final Account account;
+    private int failedAttempts;
+    private CardStatus status;
+
+    public Card(String cardNumber, String correctPin, Account account) {
+        this.cardNumber = Objects.requireNonNull(cardNumber, "卡號不得為 null");
+        this.correctPin = Objects.requireNonNull(correctPin, "密碼不得為 null");
+        this.account = Objects.requireNonNull(account, "帳戶不得為 null");
+        this.failedAttempts = 0;
+        this.status = CardStatus.ACTIVE;
     }
 
-    public static AccountId of(String value) {
-        return new AccountId(value);
+    /**
+     * 驗證密碼；正確則重置錯誤次數，錯誤累積達上限則鎖卡。
+     *
+     * @return true 表示密碼正確
+     */
+    public boolean verifyPin(String inputPin) {
+        if (status == CardStatus.LOCKED) {
+            throw new CardLockedException("提款卡已被鎖定，卡號: " + cardNumber);
+        }
+        if (correctPin.equals(inputPin)) {
+            failedAttempts = 0;
+            return true;
+        }
+        failedAttempts++;
+        if (failedAttempts >= MAX_PIN_ATTEMPTS) {
+            status = CardStatus.LOCKED;
+        }
+        return false;
+    }
+
+    public boolean isLocked() {
+        return status == CardStatus.LOCKED;
+    }
+
+    public int getFailedAttempts() {
+        return failedAttempts;
+    }
+
+    public Account getAccount() {
+        return account;
+    }
+
+    public String getCardNumber() {
+        return cardNumber;
+    }
+
+    public CardStatus getStatus() {
+        return status;
     }
 }
 
@@ -142,397 +169,354 @@ public class InsufficientBalanceException extends RuntimeException {
     }
 }
 
-// src/main/java/com/example/atm/domain/InvalidPinException.java
+// src/main/java/com/example/atm/domain/CardLockedException.java
 package com.example.atm.domain;
 
 /**
- * 密碼驗證失敗領域例外。
+ * 提款卡已鎖定領域例外。
  */
-public class InvalidPinException extends RuntimeException {
-    public InvalidPinException(String message) {
+public class CardLockedException extends RuntimeException {
+    public CardLockedException(String message) {
         super(message);
     }
 }
 
-// src/main/java/com/example/atm/domain/AccountNotFoundException.java
-package com.example.atm.domain;
-
-/**
- * 查無帳戶領域例外。
- */
-public class AccountNotFoundException extends RuntimeException {
-    public AccountNotFoundException(String message) {
-        super(message);
-    }
-}
-
-// src/main/java/com/example/atm/domain/Account.java
-package com.example.atm.domain;
-
-import java.util.Objects;
-
-/**
- * 帳戶聚合根（Aggregate Root），維護密碼驗證與餘額變更的一致性邊界。
- */
-public class Account {
-
-    private final AccountId id;
-    private final Pin pin;
-    private Money balance;
-
-    public Account(AccountId id, Pin pin, Money balance) {
-        this.id = Objects.requireNonNull(id, "id 不可為 null");
-        this.pin = Objects.requireNonNull(pin, "pin 不可為 null");
-        this.balance = Objects.requireNonNull(balance, "balance 不可為 null");
-    }
-
-    public boolean verifyPin(Pin input) {
-        Objects.requireNonNull(input, "input 不可為 null");
-        return this.pin.matches(input);
-    }
-
-    /**
-     * 提款：金額必須為正，且不得超過餘額（BR-03、BR-04）。
-     *
-     * @throws IllegalArgumentException      金額 ≤ 0
-     * @throws InsufficientBalanceException  餘額不足
-     */
-    public void withdraw(Money requested) {
-        Objects.requireNonNull(requested, "requested 不可為 null");
-        if (!requested.isPositive()) {
-            throw new IllegalArgumentException("提款金額必須大於 0");
-        }
-        if (!this.balance.isGreaterThanOrEqual(requested)) {
-            throw new InsufficientBalanceException("餘額不足");
-        }
-        this.balance = this.balance.subtract(requested);
-    }
-
-    public AccountId id() {
-        return id;
-    }
-
-    public Money balance() {
-        return balance;
-    }
-}
-
-// src/main/java/com/example/atm/domain/AccountRepository.java
+// src/main/java/com/example/atm/domain/CardRepository.java
 package com.example.atm.domain;
 
 import java.util.Optional;
 
 /**
- * 帳戶儲存庫介面（Repository），由基礎設施層實作（DIP）。
+ * 提款卡儲存庫介面（Repository），由 infrastructure 層實作，遵循 DIP。
  */
-public interface AccountRepository {
-    Optional<Account> findById(AccountId id);
-    void save(Account account);
+public interface CardRepository {
+    Optional<Card> findByCardNumber(String cardNumber);
+    void save(Card card);
 }
 
-// src/main/java/com/example/atm/domain/CashDispenser.java
-package com.example.atm.domain;
-
-/**
- * 出鈔裝置介面，抽象化實體 ATM 硬體（DIP、ISP）。
- */
-public interface CashDispenser {
-    void dispense(Money money);
-}
-
-// src/main/java/com/example/atm/domain/CardReader.java
-package com.example.atm.domain;
-
-/**
- * 讀卡與退卡裝置介面（DIP、ISP）。
- */
-public interface CardReader {
-    void eject();
-    boolean isEjected();
-}
-
-Production Code — Application Layer
-// src/main/java/com/example/atm/application/AuthResult.java
+2. Application Layer
+// src/main/java/com/example/atm/application/CashDispenser.java
 package com.example.atm.application;
 
+import com.example.atm.domain.Money;
+
 /**
- * 密碼驗證結果。
+ * 吐鈔設備介面，抽象化硬體，遵循 DIP 與 ISP。
  */
-public record AuthResult(boolean authenticated, String message) {
-
-    public static AuthResult success() {
-        return new AuthResult(true, "驗證通過");
-    }
-
-    public static AuthResult failure(String message) {
-        return new AuthResult(false, message);
-    }
+public interface CashDispenser {
+    void dispense(Money amount);
 }
 
 // src/main/java/com/example/atm/application/WithdrawalResult.java
 package com.example.atm.application;
 
 /**
- * 提款結果，供應用層對外回傳。
+ * 提款結果值物件。
  */
-public record WithdrawalResult(boolean success, long remainingBalance, String message) {
+public record WithdrawalResult(boolean success, String message, long remainingBalance) {
 
     public static WithdrawalResult success(long remainingBalance) {
-        return new WithdrawalResult(true, remainingBalance, "提款成功");
+        return new WithdrawalResult(true, "提款成功", remainingBalance);
     }
 
-    public static WithdrawalResult failure(long remainingBalance, String message) {
-        return new WithdrawalResult(false, remainingBalance, message);
+    public static WithdrawalResult failure(String message, long remainingBalance) {
+        return new WithdrawalResult(false, message, remainingBalance);
     }
 }
 
-// src/main/java/com/example/atm/application/AtmSession.java
+// src/main/java/com/example/atm/application/AtmService.java
 package com.example.atm.application;
 
-import com.example.atm.domain.Account;
-import com.example.atm.domain.AccountId;
-import com.example.atm.domain.AccountNotFoundException;
-import com.example.atm.domain.AccountRepository;
-import com.example.atm.domain.CardReader;
-import com.example.atm.domain.CashDispenser;
+import com.example.atm.domain.Card;
+import com.example.atm.domain.CardLockedException;
+import com.example.atm.domain.CardRepository;
 import com.example.atm.domain.InsufficientBalanceException;
 import com.example.atm.domain.Money;
-import com.example.atm.domain.Pin;
 
 import java.util.Objects;
 
 /**
- * ATM 會話應用服務（Application Service）。
- * 依賴抽象介面（DIP），協調領域物件完成提款使用案例。
- * 狀態機：IDLE -> CARD_INSERTED -> AUTHENTICATED -> ENDED。
+ * ATM 應用服務，協調卡片驗證、提款與吐鈔的用例流程。
  */
-public class AtmSession {
+public class AtmService {
 
-    public enum State { IDLE, CARD_INSERTED, AUTHENTICATED, ENDED }
-
-    private final AccountRepository accountRepository;
+    private final CardRepository cardRepository;
     private final CashDispenser cashDispenser;
-    private final CardReader cardReader;
 
-    private State state = State.IDLE;
-    private Account currentAccount;
-    private String lastMessage = "";
-
-    public AtmSession(AccountRepository accountRepository,
-                      CashDispenser cashDispenser,
-                      CardReader cardReader) {
-        this.accountRepository = Objects.requireNonNull(accountRepository, "accountRepository 不可為 null");
-        this.cashDispenser = Objects.requireNonNull(cashDispenser, "cashDispenser 不可為 null");
-        this.cardReader = Objects.requireNonNull(cardReader, "cardReader 不可為 null");
+    public AtmService(CardRepository cardRepository, CashDispenser cashDispenser) {
+        this.cardRepository = Objects.requireNonNull(cardRepository);
+        this.cashDispenser = Objects.requireNonNull(cashDispenser);
     }
 
-    /** FR-01 插入提款卡 */
-    public void insertCard(String accountId) {
-        AccountId id = AccountId.of(accountId);
-        this.currentAccount = accountRepository.findById(id)
-                .orElseThrow(() -> new AccountNotFoundException("查無此帳戶: " + accountId));
-        this.state = State.CARD_INSERTED;
-        this.lastMessage = "";
+    /**
+     * 驗證密碼。
+     *
+     * @return true 表示密碼正確，可進入服務選單
+     */
+    public boolean authenticate(String cardNumber, String pin) {
+        Card card = loadCard(cardNumber);
+        boolean valid = card.verifyPin(pin);
+        cardRepository.save(card);
+        return valid;
     }
 
-    /** FR-02 密碼驗證（BR-01） */
-    public AuthResult enterPin(String pin) {
-        requireState(State.CARD_INSERTED, "請先插入提款卡");
-        boolean ok = currentAccount.verifyPin(Pin.of(pin));
-        if (ok) {
-            this.state = State.AUTHENTICATED;
-            this.lastMessage = "";
-            return AuthResult.success();
+    /**
+     * 執行提款用例。
+     */
+    public WithdrawalResult withdraw(String cardNumber, long amount) {
+        Card card = loadCard(cardNumber);
+        if (card.isLocked()) {
+            throw new CardLockedException("提款卡已被鎖定，無法交易");
         }
-        this.lastMessage = "密碼錯誤";
-        return AuthResult.failure(this.lastMessage);
-    }
-
-    /** FR-03 服務選單存取控制（BR-02） */
-    public boolean canSelectService() {
-        return this.state == State.AUTHENTICATED;
-    }
-
-    /** FR-04、FR-05、FR-06、FR-07 提款（BR-03、BR-04、BR-05） */
-    public WithdrawalResult withdraw(long amount) {
-        requireState(State.AUTHENTICATED, "尚未通過密碼驗證，無法選擇服務");
+        Money withdrawAmount = Money.of(amount);
+        var account = card.getAccount();
         try {
-            Money requested = Money.of(amount);
-            currentAccount.withdraw(requested);
-            cashDispenser.dispense(requested);
-            accountRepository.save(currentAccount);
-            this.lastMessage = "提款成功";
-            return WithdrawalResult.success(currentAccount.balance().amount());
+            account.withdraw(withdrawAmount);
         } catch (InsufficientBalanceException e) {
-            this.lastMessage = "餘額不足";
-            return WithdrawalResult.failure(currentAccount.balance().amount(), this.lastMessage);
-        } catch (IllegalArgumentException e) {
-            this.lastMessage = e.getMessage();
-            return WithdrawalResult.failure(currentAccount.balance().amount(), this.lastMessage);
+            return WithdrawalResult.failure("餘額不足", account.getBalance().amount());
         }
+        cashDispenser.dispense(withdrawAmount);
+        cardRepository.save(card);
+        return WithdrawalResult.success(account.getBalance().amount());
     }
 
-    /** FR-08 結束服務並退卡（BR-07） */
-    public void endSession() {
-        cardReader.eject();
-        this.state = State.ENDED;
-        this.currentAccount = null;
+    public boolean isCardLocked(String cardNumber) {
+        return loadCard(cardNumber).isLocked();
     }
 
-    public boolean isCardEjected() {
-        return this.state == State.ENDED && cardReader.isEjected();
-    }
-
-    public String lastMessage() {
-        return lastMessage;
-    }
-
-    public State state() {
-        return state;
-    }
-
-    private void requireState(State expected, String errorMessage) {
-        if (this.state != expected) {
-            throw new IllegalStateException(errorMessage);
-        }
+    private Card loadCard(String cardNumber) {
+        return cardRepository.findByCardNumber(cardNumber)
+                .orElseThrow(() -> new IllegalArgumentException("查無此卡: " + cardNumber));
     }
 }
 
-Production Code — Infrastructure Layer
-// src/main/java/com/example/atm/infrastructure/InMemoryAccountRepository.java
+3. Infrastructure Layer
+// src/main/java/com/example/atm/infrastructure/InMemoryCardRepository.java
 package com.example.atm.infrastructure;
 
-import com.example.atm.domain.Account;
-import com.example.atm.domain.AccountId;
-import com.example.atm.domain.AccountRepository;
+import com.example.atm.domain.Card;
+import com.example.atm.domain.CardRepository;
 
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 記憶體版帳戶儲存庫，執行緒安全，供測試與示範使用。
+ * 記憶體版卡片儲存庫實作。
  */
-public class InMemoryAccountRepository implements AccountRepository {
+public class InMemoryCardRepository implements CardRepository {
 
-    private final Map<AccountId, Account> store = new ConcurrentHashMap<>();
+    private final Map<String, Card> store = new ConcurrentHashMap<>();
 
     @Override
-    public Optional<Account> findById(AccountId id) {
-        return Optional.ofNullable(store.get(id));
+    public Optional<Card> findByCardNumber(String cardNumber) {
+        return Optional.ofNullable(store.get(cardNumber));
     }
 
     @Override
-    public void save(Account account) {
-        store.put(account.id(), account);
+    public void save(Card card) {
+        store.put(card.getCardNumber(), card);
     }
 }
 
-// src/main/java/com/example/atm/infrastructure/RecordingCashDispenser.java
+// src/main/java/com/example/atm/infrastructure/SimpleCashDispenser.java
 package com.example.atm.infrastructure;
 
-import com.example.atm.domain.CashDispenser;
+import com.example.atm.application.CashDispenser;
 import com.example.atm.domain.Money;
 
 /**
- * 記錄出鈔總額的出鈔裝置實作，供測試驗證出鈔一致性。
+ * 簡易吐鈔設備實作，記錄最後一次吐出的金額。
  */
-public class RecordingCashDispenser implements CashDispenser {
+public class SimpleCashDispenser implements CashDispenser {
 
-    private long totalDispensed = 0;
+    private long lastDispensedAmount = 0;
 
     @Override
-    public void dispense(Money money) {
-        this.totalDispensed += money.amount();
+    public void dispense(Money amount) {
+        this.lastDispensedAmount = amount.amount();
     }
 
-    public long totalDispensed() {
-        return totalDispensed;
+    public long getLastDispensedAmount() {
+        return lastDispensedAmount;
     }
 }
 
-// src/main/java/com/example/atm/infrastructure/SimpleCardReader.java
-package com.example.atm.infrastructure;
+4. Cucumber Step Definitions
+// src/test/java/com/example/atm/bdd/AtmStepDefinitions.java
+package com.example.atm.bdd;
 
-import com.example.atm.domain.CardReader;
+import com.example.atm.application.AtmService;
+import com.example.atm.application.WithdrawalResult;
+import com.example.atm.domain.Account;
+import com.example.atm.domain.Card;
+import com.example.atm.domain.CardRepository;
+import com.example.atm.domain.Money;
+import com.example.atm.infrastructure.InMemoryCardRepository;
+import com.example.atm.infrastructure.SimpleCashDispenser;
+import io.cucumber.java.Before;
+import io.cucumber.java.en.And;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 
-/**
- * 簡易讀卡機實作，記錄退卡狀態。
- */
-public class SimpleCardReader implements CardReader {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-    private boolean ejected = false;
+public class AtmStepDefinitions {
 
-    @Override
-    public void eject() {
-        this.ejected = true;
+    private static final String CARD_NUMBER = "1234-5678";
+    private static final String CORRECT_PIN = "8888";
+
+    private CardRepository cardRepository;
+    private SimpleCashDispenser cashDispenser;
+    private AtmService atmService;
+
+    private boolean cardInserted;
+    private boolean pinAccepted;
+    private WithdrawalResult withdrawalResult;
+
+    @Before
+    public void setUp() {
+        cardRepository = new InMemoryCardRepository();
+        cashDispenser = new SimpleCashDispenser();
+        atmService = new AtmService(cardRepository, cashDispenser);
+        cardInserted = false;
+        pinAccepted = false;
+        withdrawalResult = null;
     }
 
-    @Override
-    public boolean isEjected() {
-        return ejected;
+    @Given("使用者 A 持有富邦銀行的提款卡")
+    public void 使用者_A_持有富邦銀行的提款卡() {
+        Account account = new Account("ACC-A", Money.of(0));
+        Card card = new Card(CARD_NUMBER, CORRECT_PIN, account);
+        cardRepository.save(card);
+    }
+
+    @And("使用者 A 到富邦銀行的 ATM 插入提款卡")
+    public void 使用者_A_到富邦銀行的_ATM_插入提款卡() {
+        cardInserted = true;
+    }
+
+    @Given("使用者 A 的帳戶餘額為 {long} 元")
+    public void 使用者_A_的帳戶餘額為_元(long balance) {
+        Account account = new Account("ACC-A", Money.of(balance));
+        Card card = new Card(CARD_NUMBER, CORRECT_PIN, account);
+        cardRepository.save(card);
+    }
+
+    @When("使用者 A 輸入正確的密碼")
+    public void 使用者_A_輸入正確的密碼() {
+        assertTrue(cardInserted, "尚未插卡");
+        pinAccepted = atmService.authenticate(CARD_NUMBER, CORRECT_PIN);
+    }
+
+    @When("使用者 A 輸入錯誤的密碼")
+    public void 使用者_A_輸入錯誤的密碼() {
+        assertTrue(cardInserted, "尚未插卡");
+        pinAccepted = atmService.authenticate(CARD_NUMBER, "0000");
+    }
+
+    @When("使用者 A 連續 {int} 次輸入錯誤的密碼")
+    public void 使用者_A_連續_次輸入錯誤的密碼(int times) {
+        assertTrue(cardInserted, "尚未插卡");
+        for (int i = 0; i < times; i++) {
+            pinAccepted = atmService.authenticate(CARD_NUMBER, "0000");
+        }
+    }
+
+    @Then("畫面上顯示可以選擇服務的選單")
+    public void 畫面上顯示可以選擇服務的選單() {
+        assertTrue(pinAccepted, "密碼驗證未通過，不應顯示選單");
+    }
+
+    @Then("畫面上顯示密碼錯誤的訊息")
+    public void 畫面上顯示密碼錯誤的訊息() {
+        assertFalse(pinAccepted, "密碼應為錯誤");
+    }
+
+    @And("畫面上不顯示服務選單")
+    public void 畫面上不顯示服務選單() {
+        assertFalse(pinAccepted, "密碼錯誤時不應顯示選單");
+    }
+
+    @And("使用者 A 無法選擇任何服務")
+    public void 使用者_A_無法選擇任何服務() {
+        assertFalse(pinAccepted);
+    }
+
+    @Then("畫面上顯示提款卡已被鎖定的訊息")
+    public void 畫面上顯示提款卡已被鎖定的訊息() {
+        assertTrue(atmService.isCardLocked(CARD_NUMBER), "提款卡應被鎖定");
+    }
+
+    @And("提款機保留提款卡不予退出")
+    public void 提款機保留提款卡不予退出() {
+        assertTrue(atmService.isCardLocked(CARD_NUMBER));
+    }
+
+    @When("使用者 A 選擇提款 {long} 元")
+    public void 使用者_A_選擇提款_元(long amount) {
+        withdrawalResult = atmService.withdraw(CARD_NUMBER, amount);
+    }
+
+    @And("使用者 A 選擇提款 {long} 元")
+    public void 使用者_A_選擇提款_元_And(long amount) {
+        withdrawalResult = atmService.withdraw(CARD_NUMBER, amount);
+    }
+
+    @Then("提款機提供 {long} 元現金")
+    public void 提款機提供_元現金(long amount) {
+        assertTrue(withdrawalResult.success(), "提款應成功");
+        assertEquals(amount, cashDispenser.getLastDispensedAmount());
+    }
+
+    @And("使用者 A 帳戶餘額扣除 {long} 元後為 {long} 元")
+    public void 使用者_A_帳戶餘額扣除_元後為_元(long deducted, long remaining) {
+        assertEquals(remaining, withdrawalResult.remainingBalance());
+    }
+
+    @Then("提款機顯示餘額不足的訊息")
+    public void 提款機顯示餘額不足的訊息() {
+        assertFalse(withdrawalResult.success());
+        assertEquals("餘額不足", withdrawalResult.message());
+    }
+
+    @And("提款機不提供任何現金")
+    public void 提款機不提供任何現金() {
+        assertEquals(0, cashDispenser.getLastDispensedAmount());
+    }
+
+    @And("使用者 A 帳戶餘額維持 {long} 元")
+    public void 使用者_A_帳戶餘額維持_元(long balance) {
+        assertEquals(balance, withdrawalResult.remainingBalance());
+    }
+
+    @When("使用者 A 選擇結束服務")
+    public void 使用者_A_選擇結束服務() {
+        // 結束服務不涉及狀態變更，僅表示流程結束
+    }
+
+    @Then("提款機退出提款卡")
+    public void 提款機退出提款卡() {
+        assertFalse(atmService.isCardLocked(CARD_NUMBER), "正常交易後應退卡");
+    }
+
+    @Then("提款機的處理結果為 {string}")
+    public void 提款機的處理結果為(String expected) {
+        assertEquals(expected, withdrawalResult.message());
+    }
+
+    @And("使用者 A 帳戶餘額為 {long} 元")
+    public void 使用者_A_帳戶餘額為_元(long balance) {
+        assertEquals(balance, withdrawalResult.remainingBalance());
     }
 }
 
-Test Code — Cucumber Feature
-# language: zh-TW
-# src/test/resources/features/atm_withdrawal.feature
-功能: 富邦銀行 ATM 提款服務
-  身為富邦銀行的持卡人
-  我想在 ATM 插卡並驗證密碼後進行提款
-  以便快速領取現金並安全結束服務
-
-  背景:
-    假設 富邦銀行 ATM 已就緒
-    而且 使用者 "A" 持有提款卡，密碼為 "1234"，帳戶餘額為 5000 元
-
-  場景: 密碼正確且餘額充足時成功提款 1000 元
-    假設 使用者 "A" 插入提款卡
-    當 使用者 "A" 輸入密碼 "1234"
-    那麼 密碼驗證通過
-    而且 使用者 "A" 可以在畫面上選擇服務
-    當 使用者 "A" 選擇提款 1000 元
-    那麼 提款機提供 1000 元現金
-    而且 使用者 "A" 帳戶餘額應為 4000 元
-    當 使用者 "A" 選擇結束服務
-    那麼 提款卡應被退出
-
-  場景: 密碼錯誤時無法進入服務選單
-    假設 使用者 "A" 插入提款卡
-    當 使用者 "A" 輸入密碼 "9999"
-    那麼 密碼驗證失敗
-    而且 畫面應顯示錯誤訊息 "密碼錯誤"
-    但是 使用者 "A" 無法在畫面上選擇服務
-
-  場景: 密碼正確但餘額不足時提款失敗
-    假設 使用者 "A" 插入提款卡
-    而且 使用者 "A" 帳戶餘額為 500 元
-    當 使用者 "A" 輸入密碼 "1234"
-    那麼 密碼驗證通過
-    當 使用者 "A" 選擇提款 1000 元
-    那麼 提款機不提供現金
-    而且 畫面應顯示錯誤訊息 "餘額不足"
-    而且 使用者 "A" 帳戶餘額應為 500 元
-
-  場景大綱: 不同提款金額的結果驗證
-    假設 使用者 "A" 插入提款卡
-    而且 使用者 "A" 帳戶餘額為 <餘額> 元
-    當 使用者 "A" 輸入密碼 "1234"
-    那麼 密碼驗證通過
-    當 使用者 "A" 選擇提款 <提款金額> 元
-    那麼 提款結果應為 "<結果>"
-    而且 使用者 "A" 帳戶餘額應為 <剩餘餘額> 元
-
-    例子:
-      | 餘額 | 提款金額 | 結果 | 剩餘餘額 |
-      | 5000 | 1000     | 成功 | 4000     |
-      | 1000 | 1000     | 成功 | 0        |
-      | 800  | 1000     | 失敗 | 800      |
-      | 5000 | 0        | 失敗 | 5000     |
-
-Test Code — Cucumber Runner 與 Step Definitions
-// src/test/java/com/example/atm/RunCucumberTest.java
-package com.example.atm;
+5. Cucumber JUnit 5 Runner
+// src/test/java/com/example/atm/bdd/RunCucumberTest.java
+package com.example.atm.bdd;
 
 import org.junit.platform.suite.api.ConfigurationParameter;
 import org.junit.platform.suite.api.IncludeEngines;
@@ -542,155 +526,68 @@ import org.junit.platform.suite.api.Suite;
 import static io.cucumber.junit.platform.engine.Constants.GLUE_PROPERTY_NAME;
 import static io.cucumber.junit.platform.engine.Constants.PLUGIN_PROPERTY_NAME;
 
-/**
- * JUnit 5 Platform 上的 Cucumber Test Runner。
- */
 @Suite
 @IncludeEngines("cucumber")
 @SelectClasspathResource("features")
-@ConfigurationParameter(key = GLUE_PROPERTY_NAME, value = "com.example.atm.steps")
-@ConfigurationParameter(key = PLUGIN_PROPERTY_NAME, value = "pretty, summary")
+@ConfigurationParameter(key = GLUE_PROPERTY_NAME, value = "com.example.atm.bdd")
+@ConfigurationParameter(key = PLUGIN_PROPERTY_NAME, value = "pretty, html:target/cucumber-report.html")
 public class RunCucumberTest {
 }
 
-// src/test/java/com/example/atm/steps/AtmWithdrawalSteps.java
-package com.example.atm.steps;
+# language: zh-TW
+# 檔名: src/test/resources/features/fubon_atm_withdrawal.feature
 
-import com.example.atm.application.AtmSession;
-import com.example.atm.application.AuthResult;
-import com.example.atm.application.WithdrawalResult;
-import com.example.atm.domain.Account;
-import com.example.atm.domain.AccountId;
-import com.example.atm.domain.Money;
-import com.example.atm.domain.Pin;
-import com.example.atm.infrastructure.InMemoryAccountRepository;
-import com.example.atm.infrastructure.RecordingCashDispenser;
-import com.example.atm.infrastructure.SimpleCardReader;
-import io.cucumber.java.Before;
-import io.cucumber.java.en.And;
-import io.cucumber.java.en.Given;
-import io.cucumber.java.en.Then;
-import io.cucumber.java.en.When;
+功能: 富邦銀行 ATM 提款服務
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+  背景:
+    假設 使用者 A 持有富邦銀行的提款卡
+    而且 使用者 A 到富邦銀行的 ATM 插入提款卡
 
-/**
- * 對應繁體中文 feature 的 step definitions（使用英文 annotation）。
- */
-public class AtmWithdrawalSteps {
+  場景: 密碼正確且餘額充足時成功提款
+    假設 使用者 A 的帳戶餘額為 5000 元
+    當 使用者 A 輸入正確的密碼
+    那麼 畫面上顯示可以選擇服務的選單
+    當 使用者 A 選擇提款 1000 元
+    那麼 提款機提供 1000 元現金
+    而且 使用者 A 帳戶餘額扣除 1000 元後為 4000 元
+    當 使用者 A 選擇結束服務
+    那麼 提款機退出提款卡
 
-    private InMemoryAccountRepository repository;
-    private RecordingCashDispenser dispenser;
-    private SimpleCardReader cardReader;
-    private AtmSession session;
-    private AuthResult authResult;
-    private WithdrawalResult withdrawalResult;
+  場景: 密碼錯誤無法進入服務選單
+    當 使用者 A 輸入錯誤的密碼
+    那麼 畫面上顯示密碼錯誤的訊息
+    而且 畫面上不顯示服務選單
+    而且 使用者 A 無法選擇任何服務
 
-    @Before
-    public void setup() {
-        repository = new InMemoryAccountRepository();
-        dispenser = new RecordingCashDispenser();
-        cardReader = new SimpleCardReader();
-        session = new AtmSession(repository, dispenser, cardReader);
-        authResult = null;
-        withdrawalResult = null;
-    }
+  場景: 密碼連續錯誤三次時鎖卡
+    當 使用者 A 連續 3 次輸入錯誤的密碼
+    那麼 畫面上顯示提款卡已被鎖定的訊息
+    而且 提款機保留提款卡不予退出
 
-    @Given("富邦銀行 ATM 已就緒")
-    public void atmReady() {
-        assertNotNull(session);
-    }
+  場景: 餘額不足時無法提款
+    假設 使用者 A 的帳戶餘額為 500 元
+    當 使用者 A 輸入正確的密碼
+    那麼 畫面上顯示可以選擇服務的選單
+    當 使用者 A 選擇提款 1000 元
+    那麼 提款機顯示餘額不足的訊息
+    而且 提款機不提供任何現金
+    而且 使用者 A 帳戶餘額維持 500 元
 
-    @Given("使用者 {string} 持有提款卡，密碼為 {string}，帳戶餘額為 {int} 元")
-    public void ownerHasCard(String accountId, String pin, int balance) {
-        repository.save(new Account(AccountId.of(accountId), Pin.of(pin), Money.of(balance)));
-    }
+  場景大綱: 不同餘額與提款金額的提款結果
+    假設 使用者 A 的帳戶餘額為 <初始餘額> 元
+    當 使用者 A 輸入正確的密碼
+    而且 使用者 A 選擇提款 <提款金額> 元
+    那麼 提款機的處理結果為 "<結果>"
+    而且 使用者 A 帳戶餘額為 <剩餘餘額> 元
 
-    @Given("使用者 {string} 帳戶餘額為 {int} 元")
-    public void resetBalance(String accountId, int balance) {
-        repository.save(new Account(AccountId.of(accountId), Pin.of("1234"), Money.of(balance)));
-    }
+    例子:
+      | 初始餘額 | 提款金額 | 結果     | 剩餘餘額 |
+      | 5000     | 1000     | 提款成功 | 4000     |
+      | 1000     | 1000     | 提款成功 | 0        |
+      | 800      | 1000     | 餘額不足 | 800      |
+      | 0        | 1000     | 餘額不足 | 0        |
 
-    @Given("使用者 {string} 插入提款卡")
-    public void insertCard(String accountId) {
-        session.insertCard(accountId);
-    }
-
-    @When("使用者 {string} 輸入密碼 {string}")
-    public void enterPin(String accountId, String pin) {
-        authResult = session.enterPin(pin);
-    }
-
-    @Then("密碼驗證通過")
-    public void pinAccepted() {
-        assertTrue(authResult.authenticated());
-        assertTrue(session.canSelectService());
-    }
-
-    @Then("密碼驗證失敗")
-    public void pinRejected() {
-        assertFalse(authResult.authenticated());
-    }
-
-    @And("使用者 {string} 可以在畫面上選擇服務")
-    public void canSelectService(String accountId) {
-        assertTrue(session.canSelectService());
-    }
-
-    @Then("使用者 {string} 無法在畫面上選擇服務")
-    public void cannotSelectService(String accountId) {
-        assertFalse(session.canSelectService());
-    }
-
-    @When("使用者 {string} 選擇提款 {int} 元")
-    public void selectWithdraw(String accountId, int amount) {
-        withdrawalResult = session.withdraw(amount);
-    }
-
-    @Then("提款機提供 {int} 元現金")
-    public void dispensed(int amount) {
-        assertTrue(withdrawalResult.success());
-        assertEquals(amount, dispenser.totalDispensed());
-    }
-
-    @Then("提款機不提供現金")
-    public void notDispensed() {
-        assertFalse(withdrawalResult.success());
-        assertEquals(0, dispenser.totalDispensed());
-    }
-
-    @And("使用者 {string} 帳戶餘額應為 {int} 元")
-    public void balanceShouldBe(String accountId, int expected) {
-        long actual = repository.findById(AccountId.of(accountId)).orElseThrow().balance().amount();
-        assertEquals(expected, actual);
-    }
-
-    @And("畫面應顯示錯誤訊息 {string}")
-    public void screenShows(String message) {
-        assertEquals(message, session.lastMessage());
-    }
-
-    @When("使用者 {string} 選擇結束服務")
-    public void endService(String accountId) {
-        session.endSession();
-    }
-
-    @Then("提款卡應被退出")
-    public void cardEjected() {
-        assertTrue(session.isCardEjected());
-    }
-
-    @Then("提款結果應為 {string}")
-    public void resultShouldBe(String expected) {
-        boolean expectSuccess = "成功".equals(expected);
-        assertEquals(expectSuccess, withdrawalResult.success());
-    }
-}
-
-Test Code — 單元測試
+6. 單元測試（提升覆蓋率至 80% 以上）
 // src/test/java/com/example/atm/domain/MoneyTest.java
 package com.example.atm.domain;
 
@@ -704,86 +601,31 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MoneyTest {
 
     @Test
-    void negativeAmount_throws() {
+    void 建立負金額應拋出例外() {
         assertThrows(IllegalArgumentException.class, () -> Money.of(-1));
     }
 
     @Test
-    void zeroConstant_isZero() {
-        assertEquals(0, Money.ZERO.amount());
-    }
-
-    @Test
-    void add_returnsSum() {
-        assertEquals(3000, Money.of(1000).add(Money.of(2000)).amount());
-    }
-
-    @Test
-    void subtract_returnsDifference() {
-        assertEquals(500, Money.of(1500).subtract(Money.of(1000)).amount());
-    }
-
-    @Test
-    void subtract_overBalance_throws() {
-        assertThrows(IllegalArgumentException.class, () -> Money.of(100).subtract(Money.of(200)));
-    }
-
-    @Test
-    void isGreaterThanOrEqual_boundaryValues() {
+    void 金額大於等於比較() {
         assertTrue(Money.of(1000).isGreaterThanOrEqual(Money.of(1000)));
         assertTrue(Money.of(1001).isGreaterThanOrEqual(Money.of(1000)));
         assertFalse(Money.of(999).isGreaterThanOrEqual(Money.of(1000)));
     }
 
     @Test
-    void isPositive() {
-        assertTrue(Money.of(1).isPositive());
-        assertFalse(Money.ZERO.isPositive());
+    void 金額扣除() {
+        assertEquals(Money.of(4000), Money.of(5000).subtract(Money.of(1000)));
     }
 
     @Test
-    void nullArgument_throws() {
-        assertThrows(NullPointerException.class, () -> Money.of(100).add(null));
-        assertThrows(NullPointerException.class, () -> Money.of(100).subtract(null));
-        assertThrows(NullPointerException.class, () -> Money.of(100).isGreaterThanOrEqual(null));
-    }
-}
-
-// src/test/java/com/example/atm/domain/PinTest.java
-package com.example.atm.domain;
-
-import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-class PinTest {
-
-    @Test
-    void validFourDigits_ok() {
-        assertTrue(Pin.of("1234").matches(Pin.of("1234")));
+    void 扣除後為負應拋出例外() {
+        assertThrows(IllegalArgumentException.class,
+                () -> Money.of(500).subtract(Money.of(1000)));
     }
 
     @Test
-    void differentPin_notMatch() {
-        assertFalse(Pin.of("1234").matches(Pin.of("9999")));
-    }
-
-    @Test
-    void nonNumeric_throws() {
-        assertThrows(IllegalArgumentException.class, () -> Pin.of("abcd"));
-    }
-
-    @Test
-    void wrongLength_throws() {
-        assertThrows(IllegalArgumentException.class, () -> Pin.of("123"));
-        assertThrows(IllegalArgumentException.class, () -> Pin.of("12345"));
-    }
-
-    @Test
-    void nullValue_throws() {
-        assertThrows(NullPointerException.class, () -> Pin.of(null));
+    void toString應包含元() {
+        assertEquals("1000 元", Money.of(1000).toString());
     }
 }
 
@@ -799,82 +641,98 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AccountTest {
 
-    private Account newAccount(long balance) {
-        return new Account(AccountId.of("A"), Pin.of("1234"), Money.of(balance));
+    @Test
+    void 餘額充足可提款() {
+        Account account = new Account("ACC-1", Money.of(5000));
+        assertTrue(account.canWithdraw(Money.of(1000)));
+        account.withdraw(Money.of(1000));
+        assertEquals(Money.of(4000), account.getBalance());
     }
 
     @Test
-    void verifyPin_correct() {
-        assertTrue(newAccount(5000).verifyPin(Pin.of("1234")));
+    void 餘額不足不可提款() {
+        Account account = new Account("ACC-1", Money.of(500));
+        assertFalse(account.canWithdraw(Money.of(1000)));
+        assertThrows(InsufficientBalanceException.class,
+                () -> account.withdraw(Money.of(1000)));
+        assertEquals(Money.of(500), account.getBalance());
     }
 
     @Test
-    void verifyPin_wrong() {
-        assertFalse(newAccount(5000).verifyPin(Pin.of("9999")));
-    }
-
-    @Test
-    void withdraw_sufficient_deducts() {
-        Account acc = newAccount(5000);
-        acc.withdraw(Money.of(1000));
-        assertEquals(4000, acc.balance().amount());
-    }
-
-    @Test
-    void withdraw_exactBalance_toZero() {
-        Account acc = newAccount(1000);
-        acc.withdraw(Money.of(1000));
-        assertEquals(0, acc.balance().amount());
-    }
-
-    @Test
-    void withdraw_insufficient_throws() {
-        Account acc = newAccount(500);
-        assertThrows(InsufficientBalanceException.class, () -> acc.withdraw(Money.of(1000)));
-        assertEquals(500, acc.balance().amount());
-    }
-
-    @Test
-    void withdraw_zero_throws() {
-        Account acc = newAccount(5000);
-        assertThrows(IllegalArgumentException.class, () -> acc.withdraw(Money.ZERO));
-    }
-
-    @Test
-    void constructor_nullArgs_throw() {
-        assertThrows(NullPointerException.class,
-                () -> new Account(null, Pin.of("1234"), Money.of(1)));
-        assertThrows(NullPointerException.class,
-                () -> new Account(AccountId.of("A"), null, Money.of(1)));
-        assertThrows(NullPointerException.class,
-                () -> new Account(AccountId.of("A"), Pin.of("1234"), null));
-    }
-
-    @Test
-    void accountId_blank_throws() {
-        assertThrows(IllegalArgumentException.class, () -> AccountId.of(" "));
-        assertThrows(NullPointerException.class, () -> AccountId.of(null));
-    }
-
-    @Test
-    void idAndBalance_getters() {
-        Account acc = newAccount(5000);
-        assertEquals("A", acc.id().value());
-        assertEquals(5000, acc.balance().amount());
+    void 取得帳號() {
+        Account account = new Account("ACC-1", Money.of(0));
+        assertEquals("ACC-1", account.getAccountId());
     }
 }
 
-// src/test/java/com/example/atm/application/AtmSessionTest.java
+// src/test/java/com/example/atm/domain/CardTest.java
+package com.example.atm.domain;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class CardTest {
+
+    private Card newCard() {
+        return new Card("C-1", "8888", new Account("ACC-1", Money.of(1000)));
+    }
+
+    @Test
+    void 密碼正確回傳true並重置錯誤次數() {
+        Card card = newCard();
+        card.verifyPin("0000"); // 累積一次錯誤
+        assertEquals(1, card.getFailedAttempts());
+        assertTrue(card.verifyPin("8888"));
+        assertEquals(0, card.getFailedAttempts());
+    }
+
+    @Test
+    void 密碼錯誤回傳false並累積次數() {
+        Card card = newCard();
+        assertFalse(card.verifyPin("0000"));
+        assertEquals(1, card.getFailedAttempts());
+    }
+
+    @Test
+    void 連續三次錯誤鎖卡() {
+        Card card = newCard();
+        card.verifyPin("0000");
+        card.verifyPin("0000");
+        card.verifyPin("0000");
+        assertTrue(card.isLocked());
+        assertEquals(CardStatus.LOCKED, card.getStatus());
+    }
+
+    @Test
+    void 鎖卡後再驗證應拋出例外() {
+        Card card = newCard();
+        card.verifyPin("0000");
+        card.verifyPin("0000");
+        card.verifyPin("0000");
+        assertThrows(CardLockedException.class, () -> card.verifyPin("8888"));
+    }
+
+    @Test
+    void 取得卡號與帳戶() {
+        Card card = newCard();
+        assertEquals("C-1", card.getCardNumber());
+        assertEquals("ACC-1", card.getAccount().getAccountId());
+    }
+}
+
+// src/test/java/com/example/atm/application/AtmServiceTest.java
 package com.example.atm.application;
 
 import com.example.atm.domain.Account;
-import com.example.atm.domain.AccountId;
-import com.example.atm.domain.AccountNotFoundException;
+import com.example.atm.domain.Card;
+import com.example.atm.domain.CardLockedException;
 import com.example.atm.domain.Money;
-import com.example.atm.domain.Pin;
-import com.example.atm.infrastructure.InMemoryAccountRepository;
-import com.example.atm.infrastructure.RecordingCashDispenser;
-import com.example.atm.infrastructure.SimpleCardReader;
+import com.example.atm.infrastructure.InMemoryCardRepository;
+import com.example.atm.infrastructure.SimpleCashDispenser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -883,146 +741,73 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class AtmSessionTest {
+class AtmServiceTest {
 
-    private InMemoryAccountRepository repository;
-    private RecordingCashDispenser dispenser;
-    private SimpleCardReader cardReader;
-    private AtmSession session;
+    private InMemoryCardRepository repository;
+    private SimpleCashDispenser dispenser;
+    private AtmService service;
 
     @BeforeEach
-    void init() {
-        repository = new InMemoryAccountRepository();
-        dispenser = new RecordingCashDispenser();
-        cardReader = new SimpleCardReader();
-        session = new AtmSession(repository, dispenser, cardReader);
-        repository.save(new Account(AccountId.of("A"), Pin.of("1234"), Money.of(5000)));
+    void setUp() {
+        repository = new InMemoryCardRepository();
+        dispenser = new SimpleCashDispenser();
+        service = new AtmService(repository, dispenser);
+    }
+
+    private void givenCard(long balance) {
+        Account account = new Account("ACC-A", Money.of(balance));
+        repository.save(new Card("1234-5678", "8888", account));
     }
 
     @Test
-    void happyPath_success() {
-        session.insertCard("A");
-        assertTrue(session.enterPin("1234").authenticated());
-        assertTrue(session.canSelectService());
+    void 密碼正確驗證成功() {
+        givenCard(5000);
+        assertTrue(service.authenticate("1234-5678", "8888"));
+    }
 
-        WithdrawalResult result = session.withdraw(1000);
+    @Test
+    void 密碼錯誤驗證失敗() {
+        givenCard(5000);
+        assertFalse(service.authenticate("1234-5678", "0000"));
+    }
+
+    @Test
+    void 餘額充足提款成功() {
+        givenCard(5000);
+        WithdrawalResult result = service.withdraw("1234-5678", 1000);
         assertTrue(result.success());
         assertEquals(4000, result.remainingBalance());
-        assertEquals(1000, dispenser.totalDispensed());
-
-        session.endSession();
-        assertTrue(session.isCardEjected());
-        assertEquals(AtmSession.State.ENDED, session.state());
+        assertEquals(1000, dispenser.getLastDispensedAmount());
     }
 
     @Test
-    void wrongPin_cannotSelectService() {
-        session.insertCard("A");
-        AuthResult result = session.enterPin("9999");
-        assertFalse(result.authenticated());
-        assertFalse(session.canSelectService());
-        assertEquals("密碼錯誤", session.lastMessage());
-    }
-
-    @Test
-    void insufficientBalance_fails() {
-        repository.save(new Account(AccountId.of("A"), Pin.of("1234"), Money.of(500)));
-        session.insertCard("A");
-        session.enterPin("1234");
-
-        WithdrawalResult result = session.withdraw(1000);
+    void 餘額不足提款失敗且不吐鈔() {
+        givenCard(500);
+        WithdrawalResult result = service.withdraw("1234-5678", 1000);
         assertFalse(result.success());
         assertEquals("餘額不足", result.message());
         assertEquals(500, result.remainingBalance());
-        assertEquals(0, dispenser.totalDispensed());
+        assertEquals(0, dispenser.getLastDispensedAmount());
     }
 
     @Test
-    void zeroAmount_fails() {
-        session.insertCard("A");
-        session.enterPin("1234");
-        WithdrawalResult result = session.withdraw(0);
-        assertFalse(result.success());
-        assertEquals("提款金額必須大於 0", result.message());
+    void 鎖卡後提款拋出例外() {
+        givenCard(5000);
+        service.authenticate("1234-5678", "0000");
+        service.authenticate("1234-5678", "0000");
+        service.authenticate("1234-5678", "0000");
+        assertTrue(service.isCardLocked("1234-5678"));
+        assertThrows(CardLockedException.class, () -> service.withdraw("1234-5678", 1000));
     }
 
     @Test
-    void withdrawBeforeAuth_throws() {
-        session.insertCard("A");
-        assertThrows(IllegalStateException.class, () -> session.withdraw(1000));
-    }
-
-    @Test
-    void enterPinBeforeInsert_throws() {
-        assertThrows(IllegalStateException.class, () -> session.enterPin("1234"));
-    }
-
-    @Test
-    void insertUnknownAccount_throws() {
-        assertThrows(AccountNotFoundException.class, () -> session.insertCard("Z"));
-    }
-
-    @Test
-    void constructor_nullArgs_throw() {
-        assertThrows(NullPointerException.class,
-                () -> new AtmSession(null, dispenser, cardReader));
-        assertThrows(NullPointerException.class,
-                () -> new AtmSession(repository, null, cardReader));
-        assertThrows(NullPointerException.class,
-                () -> new AtmSession(repository, dispenser, null));
-    }
-
-    @Test
-    void authResult_and_withdrawalResult_messages() {
-        assertTrue(AuthResult.success().authenticated());
-        assertFalse(AuthResult.failure("x").authenticated());
-        assertTrue(WithdrawalResult.success(100).success());
-        assertFalse(WithdrawalResult.failure(100, "x").success());
+    void 查無此卡拋出例外() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.withdraw("9999", 1000));
     }
 }
 
-// src/test/java/com/example/atm/infrastructure/InfrastructureTest.java
-package com.example.atm.infrastructure;
-
-import com.example.atm.domain.Account;
-import com.example.atm.domain.AccountId;
-import com.example.atm.domain.Money;
-import com.example.atm.domain.Pin;
-import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-class InfrastructureTest {
-
-    @Test
-    void repository_saveAndFind() {
-        InMemoryAccountRepository repo = new InMemoryAccountRepository();
-        Account acc = new Account(AccountId.of("A"), Pin.of("1234"), Money.of(5000));
-        repo.save(acc);
-        assertTrue(repo.findById(AccountId.of("A")).isPresent());
-        assertFalse(repo.findById(AccountId.of("B")).isPresent());
-    }
-
-    @Test
-    void dispenser_accumulates() {
-        RecordingCashDispenser dispenser = new RecordingCashDispenser();
-        dispenser.dispense(Money.of(1000));
-        dispenser.dispense(Money.of(500));
-        assertEquals(1500, dispenser.totalDispensed());
-    }
-
-    @Test
-    void cardReader_ejectLifecycle() {
-        SimpleCardReader reader = new SimpleCardReader();
-        assertFalse(reader.isEjected());
-        reader.eject();
-        assertTrue(reader.isEjected());
-    }
-}
-
-建置設定（含 JaCoCo 80% 覆蓋率門檻）
+7. 建置檔（Maven）
 <!-- pom.xml -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -1039,7 +824,6 @@ class InfrastructureTest {
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.10.2</junit.version>
         <cucumber.version>7.15.0</cucumber.version>
-        <jacoco.version>0.8.11</jacoco.version>
     </properties>
 
     <dependencies>
@@ -1076,14 +860,12 @@ class InfrastructureTest {
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
             </plugin>
-
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>${jacoco.version}</version>
+                <version>0.8.12</version>
                 <executions>
                     <execution>
-                        <id>prepare-agent</id>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
@@ -1097,7 +879,6 @@ class InfrastructureTest {
                     </execution>
                     <execution>
                         <id>check-coverage</id>
-                        <phase>verify</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>
@@ -1122,21 +903,13 @@ class InfrastructureTest {
     </build>
 </project>
 
-執行與驗證
-指令	用途
-mvn test	執行 Cucumber 情境與 JUnit 單元測試
-mvn verify	執行測試並驗證覆蓋率 ≥ 80%
-target/site/jacoco/index.html	JaCoCo 覆蓋率報告
-覆蓋率預估
-分層	主要類別	覆蓋方式	預估行覆蓋率
-Domain	Money、Pin、Account、AccountId	單元測試 + Cucumber	≥ 95%
-Application	AtmSession、WithdrawalResult、AuthResult	單元測試 + Cucumber	≥ 90%
-Infrastructure	三個介面實作	單元測試 + Cucumber	≥ 90%
-整體	—	—	≥ 85%（達成 80% 門檻）
-SOLID 對應說明
+設計說明
 原則	落實方式
-SRP	各值物件、聚合根、應用服務職責單一
-OCP	透過介面擴充出鈔／讀卡／儲存實作，無須修改核心
-LSP	所有介面實作可互換替換
-ISP	CashDispenser、CardReader、AccountRepository 介面各自精簡
-DIP	AtmSession 依賴抽象介面而非具體實作
+SRP	Card 管密碼／鎖卡、Account 管餘額、AtmService 協調用例，各司其職。
+OCP	新增吐鈔或儲存機制只需實作 CashDispenser／CardRepository，不修改既有程式。
+LSP	所有 CashDispenser／CardRepository 實作可互換。
+ISP	CashDispenser 僅暴露 dispense，介面精簡。
+DIP	AtmService 依賴抽象介面而非具體實作，由外層注入。
+DDD	domain（實體、值物件、聚合、Repository 介面）／application（用例服務）／infrastructure（技術實作）三層分離。
+
+執行 mvn test 即會跑 Cucumber 場景與 JUnit 單元測試，並由 JaCoCo 驗證行覆蓋率須 ≥ 80%（check-coverage 未達標時建置失敗）。

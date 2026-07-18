@@ -16,6 +16,13 @@ function docTitle(markdown: string): string {
   return m ? m[1].trim() : "業務需求文件";
 }
 
+/** 產出物浮動視窗標題:依內容為 Gherkin 或 Java 程式碼。 */
+function artifactModalTitle(markdown: string): string {
+  if (/```java/i.test(markdown)) return "產出程式碼(Java / Cucumber)";
+  if (/```gherkin/i.test(markdown)) return "Gherkin 情境(.feature)";
+  return "產出物內容";
+}
+
 // 後端 /api/providers/ica/models 不可用時的後備清單。
 const FALLBACK_MODELS: ModelOption[] = [
   { id: "claude-opus-4-8", label: "claude-opus-4-8" },
@@ -201,7 +208,7 @@ export function App() {
         </Modal>
       )}
       {modal === "code" && (
-        <Modal title="產出程式碼(Java / Cucumber)" onClose={() => setModal(null)}>
+        <Modal title={artifactModalTitle(lastAssistant?.content ?? "")} onClose={() => setModal(null)}>
           <Markdown>{lastAssistant?.content ?? ""}</Markdown>
         </Modal>
       )}

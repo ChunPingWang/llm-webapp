@@ -96,12 +96,20 @@ try {
 
     // === 呈現階段 ===
     if (stepNo === 1) {
-      // Gherkin:於對話區由上而下緩慢捲動
-      await sleep(600);
-      mark("step1 scroll start");
-      await slowScroll(".messages", 9000);
-      mark("step1 scroll end");
-      await sleep(600);
+      // Gherkin:切 Artifacts → 放大浮動視窗 → 緩慢下滑
+      try {
+        await page.click('.tabs button:has-text("Artifacts")');
+        await sleep(900);
+        await page.click('button:has-text("放大")');
+        await page.waitForSelector(".modal-body .markdown", { timeout: 20000 });
+        await sleep(1200);
+        mark("step1 modal scroll start");
+        await slowScroll(".modal-body", 11000);
+        mark("step1 modal scroll end");
+        await sleep(800);
+        await page.click(".modal-close");
+        await sleep(600);
+      } catch (e) { console.log("step1 present failed:", e.message); }
     } else if (stepNo === 2) {
       // Word:切分頁 → 放大浮動視窗 → 緩慢下滑
       try {

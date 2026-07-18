@@ -9,67 +9,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AccountTest {
 
-    private Account newAccount(long balance) {
-        return new Account(AccountId.of("A"), Pin.of("1234"), Money.of(balance));
+    @Test
+    void 餘額充足可提款() {
+        Account account = new Account("ACC-1", Money.of(5000));
+        assertTrue(account.canWithdraw(Money.of(1000)));
+        account.withdraw(Money.of(1000));
+        assertEquals(Money.of(4000), account.getBalance());
     }
 
     @Test
-    void verifyPin_correct() {
-        assertTrue(newAccount(5000).verifyPin(Pin.of("1234")));
+    void 餘額不足不可提款() {
+        Account account = new Account("ACC-1", Money.of(500));
+        assertFalse(account.canWithdraw(Money.of(1000)));
+        assertThrows(InsufficientBalanceException.class,
+                () -> account.withdraw(Money.of(1000)));
+        assertEquals(Money.of(500), account.getBalance());
     }
 
     @Test
-    void verifyPin_wrong() {
-        assertFalse(newAccount(5000).verifyPin(Pin.of("9999")));
-    }
-
-    @Test
-    void withdraw_sufficient_deducts() {
-        Account acc = newAccount(5000);
-        acc.withdraw(Money.of(1000));
-        assertEquals(4000, acc.balance().amount());
-    }
-
-    @Test
-    void withdraw_exactBalance_toZero() {
-        Account acc = newAccount(1000);
-        acc.withdraw(Money.of(1000));
-        assertEquals(0, acc.balance().amount());
-    }
-
-    @Test
-    void withdraw_insufficient_throws() {
-        Account acc = newAccount(500);
-        assertThrows(InsufficientBalanceException.class, () -> acc.withdraw(Money.of(1000)));
-        assertEquals(500, acc.balance().amount());
-    }
-
-    @Test
-    void withdraw_zero_throws() {
-        Account acc = newAccount(5000);
-        assertThrows(IllegalArgumentException.class, () -> acc.withdraw(Money.ZERO));
-    }
-
-    @Test
-    void constructor_nullArgs_throw() {
-        assertThrows(NullPointerException.class,
-                () -> new Account(null, Pin.of("1234"), Money.of(1)));
-        assertThrows(NullPointerException.class,
-                () -> new Account(AccountId.of("A"), null, Money.of(1)));
-        assertThrows(NullPointerException.class,
-                () -> new Account(AccountId.of("A"), Pin.of("1234"), null));
-    }
-
-    @Test
-    void accountId_blank_throws() {
-        assertThrows(IllegalArgumentException.class, () -> AccountId.of(" "));
-        assertThrows(NullPointerException.class, () -> AccountId.of(null));
-    }
-
-    @Test
-    void idAndBalance_getters() {
-        Account acc = newAccount(5000);
-        assertEquals("A", acc.id().value());
-        assertEquals(5000, acc.balance().amount());
+    void 取得帳號() {
+        Account account = new Account("ACC-1", Money.of(0));
+        assertEquals("ACC-1", account.getAccountId());
     }
 }

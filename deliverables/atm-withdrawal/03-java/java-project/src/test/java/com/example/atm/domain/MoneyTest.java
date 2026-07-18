@@ -10,47 +10,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MoneyTest {
 
     @Test
-    void negativeAmount_throws() {
+    void 建立負金額應拋出例外() {
         assertThrows(IllegalArgumentException.class, () -> Money.of(-1));
     }
 
     @Test
-    void zeroConstant_isZero() {
-        assertEquals(0, Money.ZERO.amount());
-    }
-
-    @Test
-    void add_returnsSum() {
-        assertEquals(3000, Money.of(1000).add(Money.of(2000)).amount());
-    }
-
-    @Test
-    void subtract_returnsDifference() {
-        assertEquals(500, Money.of(1500).subtract(Money.of(1000)).amount());
-    }
-
-    @Test
-    void subtract_overBalance_throws() {
-        assertThrows(IllegalArgumentException.class, () -> Money.of(100).subtract(Money.of(200)));
-    }
-
-    @Test
-    void isGreaterThanOrEqual_boundaryValues() {
+    void 金額大於等於比較() {
         assertTrue(Money.of(1000).isGreaterThanOrEqual(Money.of(1000)));
         assertTrue(Money.of(1001).isGreaterThanOrEqual(Money.of(1000)));
         assertFalse(Money.of(999).isGreaterThanOrEqual(Money.of(1000)));
     }
 
     @Test
-    void isPositive() {
-        assertTrue(Money.of(1).isPositive());
-        assertFalse(Money.ZERO.isPositive());
+    void 金額扣除() {
+        assertEquals(Money.of(4000), Money.of(5000).subtract(Money.of(1000)));
     }
 
     @Test
-    void nullArgument_throws() {
-        assertThrows(NullPointerException.class, () -> Money.of(100).add(null));
-        assertThrows(NullPointerException.class, () -> Money.of(100).subtract(null));
-        assertThrows(NullPointerException.class, () -> Money.of(100).isGreaterThanOrEqual(null));
+    void 扣除後為負應拋出例外() {
+        assertThrows(IllegalArgumentException.class,
+                () -> Money.of(500).subtract(Money.of(1000)));
+    }
+
+    @Test
+    void toString應包含元() {
+        assertEquals("1000 元", Money.of(1000).toString());
     }
 }

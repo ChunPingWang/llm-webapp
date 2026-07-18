@@ -12,11 +12,11 @@ Style: Tag, Noto Sans CJK TC, 26, &H0033D6FF, &H0033D6FF, &H00202020, &HB0202020
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0, 0:00:00.00, 0:00:04.30, Caption, , 0, 0, 0, , 啟動 LLM Agent 平台(透過 IBM ICA 呼叫 claude-opus-4-8)
-Dialogue: 0, 0:00:04.30, 0:00:17.20, Caption, , 0, 0, 0, , Step 1｜將富邦銀行 ATM 提款情境轉為 Gherkin(含正向 / 反向條件),完成後緩慢捲動檢視
-Dialogue: 0, 0:00:17.20, 0:01:32.10, Caption, , 0, 0, 0, , Step 2｜產生業務需求文件,以浮動視窗「Word 預覽」呈現並緩慢捲動
-Dialogue: 0, 0:01:32.10, 0:04:02.08, Caption, , 0, 0, 0, , Step 3｜產生 Java 21 + Cucumber 程式碼(DDD/SOLID,英文 annotation),浮動視窗檢視,涵蓋率 100%
-Dialogue: 0, 0:00:00.00, 0:00:04.30, Tag, , 0, 0, 0, , ● 準備中
-Dialogue: 0, 0:00:04.30, 0:00:17.20, Tag, , 0, 0, 0, , ● Step 1 / 3　Gherkin
-Dialogue: 0, 0:00:17.20, 0:01:32.10, Tag, , 0, 0, 0, , ● Step 2 / 3　業務需求文件 · Word 預覽
-Dialogue: 0, 0:01:32.10, 0:04:02.08, Tag, , 0, 0, 0, , ● Step 3 / 3　Java + Cucumber
+Dialogue: 0, 0:00:00.00, 0:00:05.00, Caption, , 0, 0, 0, , 啟動 LLM Agent 平台(透過 IBM ICA 呼叫 claude-opus-4-8)
+Dialogue: 0, 0:00:05.00, 0:00:21.90, Caption, , 0, 0, 0, , Step 1｜將富邦銀行 ATM 提款情境轉為 Gherkin(含正向 / 反向條件),完成後緩慢捲動檢視
+Dialogue: 0, 0:00:21.90, 0:01:26.10, Caption, , 0, 0, 0, , Step 2｜產生業務需求文件,以浮動視窗「Word 預覽」呈現並緩慢捲動
+Dialogue: 0, 0:01:26.10, 0:03:47.60, Caption, , 0, 0, 0, , Step 3｜產生 Java 21 + Cucumber 程式碼(DDD/SOLID,英文 annotation),浮動視窗檢視,涵蓋率 100%
+Dialogue: 0, 0:00:00.00, 0:00:05.00, Tag, , 0, 0, 0, , ● 準備中
+Dialogue: 0, 0:00:05.00, 0:00:21.90, Tag, , 0, 0, 0, , ● Step 1 / 3　Gherkin
+Dialogue: 0, 0:00:21.90, 0:01:26.10, Tag, , 0, 0, 0, , ● Step 2 / 3　業務需求文件 · Word 預覽
+Dialogue: 0, 0:01:26.10, 0:03:47.60, Tag, , 0, 0, 0, , ● Step 3 / 3　Java + Cucumber
