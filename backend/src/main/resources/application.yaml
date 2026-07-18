@@ -1,6 +1,19 @@
 spring:
   application:
     name: llm-agent-backend
+  ai:
+    openai:
+      # ICA OpenAI-Compatible Gateway。base-url 後接 /v1/chat/completions。
+      base-url: ${ICA_API_URL}
+      api-key: ${ICA_CLAUDE_KEY}
+      chat:
+        options:
+          model: ${llmagent.chat.default-model-id}
+          # ICA(litellm)對 Claude 僅接受 temperature=1;覆寫 Spring AI 預設 0.7 以免 400。
+          temperature: 1.0
+      # 平台僅用 chat;避免 embedding 自動設定要求額外參數。
+      embedding:
+        enabled: false
 
 server:
   port: 8080
@@ -16,6 +29,12 @@ management:
 llmagent:
   cors:
     allowed-origins: "http://localhost:5173"
+  chat:
+    # ICA 可用 Claude 中最新旗艦。
+    default-model-id: claude-opus-4-8
+    default-system-prompt: >-
+      你是一位專業的軟體工程助理。回答精確、簡潔;程式碼一律以 Markdown code fence 呈現
+      (例如 ```java 或 ```gherkin),Gherkin 使用繁體中文關鍵字(功能:/場景:/假設/當/那麼)。
   providers:
     ica:
       type: OPENAI_COMPATIBLE

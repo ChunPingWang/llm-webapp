@@ -32,12 +32,13 @@
 
 ## Phase 2 — 對話與串流(WP3, WP4)
 
-- [ ] **WP3-T1** `POST /api/chat` + `GET /api/chat/{id}/stream`(五型事件,ADR-002/003)`deps: [WP2-T1, WP2-T3, WP1-T4]`
+- [x] **WP3-T1** `POST /api/chat` + `GET /api/chat/{id}/stream`(五型事件,ADR-002/003)`deps: [WP2-T1, WP2-T3, WP1-T4]` — Step 2(後端)
   - 驗收:feature `chat_streaming.feature`;訊息記錄 model_id 與 agent_profile_version
+  - 實作:`POST /api/conversations` → `POST /api/conversations/{id}/messages` → `GET /api/messages/{id}/stream`(依 openapi.yaml)。ICA(claude-opus-4-8)串流 e2e 驗證通過,thinking/content/log/done 事件正確 ✅
 - [ ] **WP3-T2** Chat Panel UI:串流渲染 + Markdown + Shiki 高亮 `deps: [WP3-T1]`
 - [ ] **WP3-T3** 對話中切換模型/Agent Profile `deps: [WP3-T1]`
-- [ ] **WP4-T1** ThinkingParser:`<think>` 標籤分流為 `thinking` 事件(後端,ADR-003)`deps: [WP3-T1]`
-  - 驗收:DeepSeek-R1/Qwen3 標籤樣本測試集全過;不完整標籤容錯
+- [x] **WP4-T1** ThinkingParser:`<think>` 標籤分流為 `thinking` 事件(後端,ADR-003)`deps: [WP3-T1]` — Step 2
+  - 驗收:DeepSeek-R1/Qwen3 標籤樣本測試集全過;不完整標籤容錯 ✅(跨 chunk 切斷、未閉合、`<` 非標籤等單元測試通過)
 - [ ] **WP4-T2** Thinking 區塊 UI(串流展開、完成自動收合)`deps: [WP4-T1, WP3-T2]`
 - [ ] **WP4-T3** 日誌面板(INFO/WARN/ERROR 三色)+ `log` 事件 + audit_logs 落地 `deps: [WP3-T1]`
   - 驗收:TTFT、token 用量、錯誤堆疊皆呈現;audit_logs 可依 conversation 查詢

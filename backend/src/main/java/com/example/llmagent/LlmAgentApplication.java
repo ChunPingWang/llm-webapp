@@ -2,6 +2,7 @@ package com.example.llmagent;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
  * LLM Agent Web Platform — 應用進入點。
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * Provider / DB / MinIO 皆為 adapter。本類別僅負責啟動 Spring 容器。
  */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class LlmAgentApplication {
 
     public static void main(String[] args) {
