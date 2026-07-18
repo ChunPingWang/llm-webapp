@@ -21,8 +21,9 @@
 
 - [ ] **WP2-T1** ProviderRegistry + 設定載入(OLLAMA / OPENAI_COMPATIBLE / ANTHROPIC)`deps: [WP1-T3]`
   - 驗收:三型 Provider 可註冊;apiKey 僅接受環境變數參照(ADR-001)
-- [ ] **WP2-T2** 模型清單動態拉取 API `GET /api/providers/{id}/models` `deps: [WP2-T1]`
-  - 驗收:WireMock 模擬 Ollama `/api/tags` 與 OpenAI `/v1/models`;timeout 3s 快速失敗
+- [x] **WP2-T2** 模型清單動態拉取 API `GET /api/providers/{id}/models` `deps: [WP2-T1]` — Step 4
+  - 驗收:WireMock 模擬 Ollama `/api/tags` 與 OpenAI `/v1/models`;timeout 3s 快速失敗 ✅
+  - 實作:IcaModelCatalogAdapter(WebClient,3s timeout,錯誤→空串流)、ModelService(Claude 置前)、ProviderController;WireMock 4 例(解析/未知 provider/500 快速失敗/5s 逾時)通過;前端模型選擇器改為動態拉取(後備清單容錯)。Live 驗證 ICA 回 18 模型 ✅
 - [ ] **WP2-T3** Agent Profile CRUD + prompt 版本化(append-only)`deps: [WP1-T3]`
   - 驗收:feature `agent_profile.feature` 全過;修改 prompt 產生新 version,舊版可查
 - [ ] **WP2-T4** PromptTemplate 變數套用(`{project_name}`、`{gherkin_locale}`)`deps: [WP2-T3]`

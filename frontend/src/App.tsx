@@ -1,17 +1,16 @@
-import { useMemo, useRef, useState } from "react";
-import { createConversation, postMessage, streamMessage } from "./api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createConversation, fetchModels, postMessage, streamMessage } from "./api";
 import { MessageView } from "./components/MessageView";
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { LogPanel } from "./components/LogPanel";
 import type { ChatMessage, LogLine, ModelOption } from "./types";
 
-// ICA 可用的 Claude 模型(最新旗艦置頂)。後續改為動態拉取 /api/providers/{id}/models(WP2-T2)。
-const MODELS: ModelOption[] = [
-  { id: "claude-opus-4-8", label: "Claude Opus 4.8(最新旗艦)" },
-  { id: "claude-sonnet-5", label: "Claude Sonnet 5" },
-  { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
-  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
+// 後端 /api/providers/ica/models 不可用時的後備清單。
+const FALLBACK_MODELS: ModelOption[] = [
+  { id: "claude-opus-4-8", label: "claude-opus-4-8" },
+  { id: "claude-sonnet-5", label: "claude-sonnet-5" },
 ];
+const PREFERRED_DEFAULT = "claude-opus-4-8";
 
 let uid = 0;
 const nextId = () => `local-${uid++}`;
@@ -20,11 +19,29 @@ export function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [input, setInput] = useState("");
-  const [model, setModel] = useState(MODELS[0].id);
+  const [models, setModels] = useState<ModelOption[]>(FALLBACK_MODELS);
+  const [model, setModel] = useState(PREFERRED_DEFAULT);
   const [sending, setSending] = useState(false);
   const [tab, setTab] = useState<"artifacts" | "logs">("artifacts");
   const convId = useRef<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
+
+  // 開啟時動態拉取 ICA 模型清單(WP2-T2);失敗則沿用後備清單。
+  useEffect(() => {
+    fetchModels("ica")
+      .then((list) => {
+        if (list.length === 0) return;
+        setModels(list);
+        setModel((cur) =>
+          list.some((m) => m.id === cur)
+            ? cur
+            : (list.find((m) => m.id === PREFERRED_DEFAULT)?.id ?? list[0].id),
+        );
+      })
+      .catch(() => {
+        /* 保留後備清單 */
+      });
+  }, []);
 
   const lastAssistant = useMemo(
     () => [...messages].reverse().find((m) => m.role === "assistant"),
@@ -94,11 +111,11 @@ export function App() {
         <div className="model-picker">
           <label>模型</label>
           <select value={model} onChange={(e) => setModel(e.target.value)} disabled={sending}>
-            {MODELS.map((m) => (
+            {models.map((m) => (
               <option key={m.id} value={m.id}>{m.label}</option>
             ))}
           </select>
-          <span className="provider-tag">ICA</span>
+          <span className="provider-tag">ICA · {models.length} 模型</span>
         </div>
       </header>
 

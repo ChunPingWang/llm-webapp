@@ -1,4 +1,12 @@
-import type { DoneInfo, LogLine } from "./types";
+import type { DoneInfo, LogLine, ModelOption } from "./types";
+
+/** 動態拉取 Provider 模型清單(WP2-T2)。後端已將 Claude 置前。 */
+export async function fetchModels(providerId = "ica"): Promise<ModelOption[]> {
+  const res = await fetch(`/api/providers/${providerId}/models`);
+  if (!res.ok) throw new Error(`fetchModels failed: ${res.status}`);
+  const data: Array<{ id: string; providerId: string }> = await res.json();
+  return data.map((m) => ({ id: m.id, label: m.id }));
+}
 
 /** 建立對話,回傳 conversationId。 */
 export async function createConversation(modelId: string): Promise<string> {
