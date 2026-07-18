@@ -54,8 +54,8 @@ docker compose -f docker/compose.yaml up -d
 
 - [x] **Step 1 — 骨架(WP1-T1 / WP1-T4)**:monorepo、Hexagonal 後端骨架、SSE ping 管線、React/Vite 前端、docker compose
 - [x] **Step 2 — ICA Provider + Chat 串流(WP3-T1 後端 / WP4-T1)**:透過 Spring AI 呼叫 ICA `claude-opus-4-8`,五型 SSE 事件、ThinkingParser、TTFT/token 用量;e2e 驗證通過
-- [ ] **Step 3 — Chat UI**:串流渲染、Thinking 面板、Artifact 面板
-- [ ] 後續:Agent Profile、Artifact 版本化、Word 預覽、可觀測性、部署(見 TASKS.md)
+- [x] **Step 3 — Chat UI(WP3-T2 / WP4-T2 / WP5-T2 前端)**:三欄式介面(對話 / Artifacts / 日誌)、串流渲染、Thinking 摺疊區塊、Markdown + 語法高亮、Gherkin/Java 產出物抽取與下載、模型選擇器
+- [ ] 後續:Postgres/Flyway 落地(WP1-T3)、Provider models 動態拉取(WP2-T2)、Agent Profile、後端 Artifact 版本化、Word 預覽、可觀測性、部署(見 `docs/tasks/TASKS.md`)
 
 ## 建置指令
 

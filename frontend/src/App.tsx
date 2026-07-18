@@ -1,67 +1,154 @@
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { createConversation, postMessage, streamMessage } from "./api";
+import { MessageView } from "./components/MessageView";
+import { ArtifactPanel } from "./components/ArtifactPanel";
+import { LogPanel } from "./components/LogPanel";
+import type { ChatMessage, LogLine, ModelOption } from "./types";
 
-interface LogLine {
-  event: string;
-  data: string;
-}
+// ICA 可用的 Claude 模型(最新旗艦置頂)。後續改為動態拉取 /api/providers/{id}/models(WP2-T2)。
+const MODELS: ModelOption[] = [
+  { id: "claude-opus-4-8", label: "Claude Opus 4.8(最新旗艦)" },
+  { id: "claude-sonnet-5", label: "Claude Sonnet 5" },
+  { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
+  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
+];
 
-/**
- * Step 1 scaffold 首頁:驗證前端 → Vite proxy → 後端 SSE 管線(WP1-T4)。
- * Chat / Thinking / Artifact 面板於後續 step 實作。
- */
+let uid = 0;
+const nextId = () => `local-${uid++}`;
+
 export function App() {
-  const [lines, setLines] = useState<LogLine[]>([]);
-  const [running, setRunning] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [logs, setLogs] = useState<LogLine[]>([]);
+  const [input, setInput] = useState("");
+  const [model, setModel] = useState(MODELS[0].id);
+  const [sending, setSending] = useState(false);
+  const [tab, setTab] = useState<"artifacts" | "logs">("artifacts");
+  const convId = useRef<string | null>(null);
+  const esRef = useRef<EventSource | null>(null);
 
-  function runPing() {
-    setLines([]);
-    setRunning(true);
-    const es = new EventSource("/api/ping/stream");
-    const push = (event: string) => (e: MessageEvent) =>
-      setLines((prev) => [...prev, { event, data: e.data }]);
-    es.addEventListener("log", push("log"));
-    es.addEventListener("done", (e) => {
-      push("done")(e as MessageEvent);
-      es.close();
-      setRunning(false);
-    });
-    es.onerror = () => {
-      es.close();
-      setRunning(false);
-    };
+  const lastAssistant = useMemo(
+    () => [...messages].reverse().find((m) => m.role === "assistant"),
+    [messages],
+  );
+
+  function patch(id: string, fn: (m: ChatMessage) => ChatMessage) {
+    setMessages((prev) => prev.map((m) => (m.id === id ? fn(m) : m)));
+  }
+
+  async function send() {
+    const text = input.trim();
+    if (!text || sending) return;
+    setSending(true);
+    setInput("");
+
+    try {
+      if (!convId.current) {
+        convId.current = await createConversation(model);
+      }
+      const userMsg: ChatMessage = {
+        id: nextId(), role: "user", content: text, thinking: "", logs: [], streaming: false,
+      };
+      const assistantId = nextId();
+      const assistant: ChatMessage = {
+        id: assistantId, role: "assistant", content: "", thinking: "", logs: [],
+        streaming: true, model,
+      };
+      setMessages((prev) => [...prev, userMsg, assistant]);
+
+      const messageId = await postMessage(convId.current, text);
+
+      esRef.current = streamMessage(messageId, {
+        onThinking: (d) => patch(assistantId, (m) => ({ ...m, thinking: m.thinking + d })),
+        onContent: (d) => patch(assistantId, (m) => ({ ...m, content: m.content + d })),
+        onLog: (line) => {
+          setLogs((prev) => [...prev, line]);
+          patch(assistantId, (m) => ({ ...m, logs: [...m.logs, line] }));
+        },
+        onDone: (info) => {
+          patch(assistantId, (m) => ({ ...m, done: info, streaming: false }));
+          setSending(false);
+        },
+        onError: () => {
+          patch(assistantId, (m) => ({ ...m, streaming: false }));
+          setLogs((prev) => [...prev, { level: "ERROR", source: "client", msg: "串流連線中斷", ts: "" }]);
+          setSending(false);
+        },
+      });
+    } catch (err) {
+      setLogs((prev) => [...prev, { level: "ERROR", source: "client", msg: String(err), ts: "" }]);
+      setSending(false);
+    }
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      send();
+    }
   }
 
   return (
-    <main className="app">
-      <header>
+    <div className="layout">
+      <header className="topbar">
         <h1>LLM Agent 平台</h1>
-        <p className="subtitle">
-          多模型串接 · Gherkin / Java 產出物 · 思考過程即時串流
-        </p>
+        <div className="model-picker">
+          <label>模型</label>
+          <select value={model} onChange={(e) => setModel(e.target.value)} disabled={sending}>
+            {MODELS.map((m) => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
+          <span className="provider-tag">ICA</span>
+        </div>
       </header>
 
-      <section className="card">
-        <h2>SSE 管線自我檢測</h2>
-        <p>
-          點擊按鈕向後端 <code>/api/ping/stream</code> 建立 event-stream 連線,
-          驗證串流管線(前端 → Vite proxy → Spring WebFlux)。
-        </p>
-        <button onClick={runPing} disabled={running}>
-          {running ? "串流中…" : "執行 Ping 串流"}
-        </button>
-        <ul className="log">
-          {lines.map((l, i) => (
-            <li key={i}>
-              <span className={`tag tag-${l.event}`}>{l.event}</span>
-              <code>{l.data}</code>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <main className="main">
+        <section className="chat">
+          <div className="messages">
+            {messages.length === 0 && (
+              <div className="welcome">
+                <h2>開始對話</h2>
+                <p>透過 IBM ICA 呼叫最新 Claude 模型。試著請它產生一段繁體中文 Gherkin 或 Java 程式碼,
+                  產出物會出現在右側 Artifacts 分頁。</p>
+              </div>
+            )}
+            {messages.map((m) => (
+              <MessageView key={m.id} message={m} />
+            ))}
+          </div>
+          <div className="composer">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="輸入訊息…(Cmd/Ctrl + Enter 送出)"
+              rows={3}
+              disabled={sending}
+            />
+            <button onClick={send} disabled={sending || !input.trim()}>
+              {sending ? "串流中…" : "送出"}
+            </button>
+          </div>
+        </section>
 
-      <footer>
-        <span>ICA 最新 Claude 模型 · 預設 claude-opus-4-8</span>
-      </footer>
-    </main>
+        <aside className="sidebar">
+          <div className="tabs">
+            <button className={tab === "artifacts" ? "active" : ""} onClick={() => setTab("artifacts")}>
+              Artifacts
+            </button>
+            <button className={tab === "logs" ? "active" : ""} onClick={() => setTab("logs")}>
+              日誌{logs.length > 0 ? ` (${logs.length})` : ""}
+            </button>
+          </div>
+          <div className="tab-body">
+            {tab === "artifacts" ? (
+              <ArtifactPanel sourceMarkdown={lastAssistant?.content ?? ""} />
+            ) : (
+              <LogPanel logs={logs} />
+            )}
+          </div>
+        </aside>
+      </main>
+    </div>
   );
 }
