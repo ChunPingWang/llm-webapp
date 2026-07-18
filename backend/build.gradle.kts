@@ -40,6 +40,10 @@ dependencies {
     // 物件儲存(WP6-T1):MinIO S3 API,pre-signed URL。
     implementation("io.minio:minio:8.5.12")
 
+    // 可觀測性(WP4-T4,ADR-007):Micrometer Observation → OTel → OTLP(Langfuse/Jaeger 皆可收)。
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp")
+
     // 持久化(WP1-T3):PostgreSQL + Flyway。postgres profile 啟用;預設仍為 in-memory。
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.flywaydb:flyway-core")

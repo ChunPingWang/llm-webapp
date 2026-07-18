@@ -1,0 +1,15 @@
+# otel profile:啟用追蹤匯出(WP4-T4,ADR-007)。
+# 匯出到任何 OTLP HTTP 接收端:
+#   - Jaeger:OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318(預設)
+#   - Langfuse(自架):OTEL_EXPORTER_OTLP_ENDPOINT=https://<langfuse>/api/public/otel
+#     並設 LANGFUSE_OTLP_AUTH="Basic <base64(pk:sk)>"(金鑰走環境變數,不落地)
+management:
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}/v1/traces
+      headers:
+        Authorization: ${LANGFUSE_OTLP_AUTH:}

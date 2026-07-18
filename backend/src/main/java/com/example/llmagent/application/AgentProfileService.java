@@ -19,10 +19,16 @@ import com.example.llmagent.domain.agent.PromptTemplate;
 @Service
 public class AgentProfileService {
 
-    private final AgentProfileStore store;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AgentProfileService.class);
 
-    public AgentProfileService(AgentProfileStore store) {
+    private final AgentProfileStore store;
+    private final com.example.llmagent.adapter.out.langfuse.LangfusePromptSource langfuse;
+
+    public AgentProfileService(AgentProfileStore store,
+                               @org.springframework.lang.Nullable
+                               com.example.llmagent.adapter.out.langfuse.LangfusePromptSource langfuse) {
         this.store = store;
+        this.langfuse = langfuse;
     }
 
     public AgentProfile create(String name, String description, String systemPrompt,
@@ -66,12 +72,24 @@ public class AgentProfileService {
 
     /**
      * 解析 Profile 的 system prompt(套用範本變數)。
+     * Prompt 主版本優先自 Langfuse Prompt Management 取用(以 Profile 名稱對應,ADR-006/WP4-T5),
+     * 未設定或取用失敗時 fallback 至 DB 版本。
      *
      * @throws PromptTemplate.MissingVariableException 缺變數時
      */
     public String renderPrompt(String profileId, Map<String, String> variables) {
         AgentProfile p = store.findLatest(profileId)
                 .orElseThrow(() -> new IllegalArgumentException("agent profile not found: " + profileId));
-        return PromptTemplate.render(p.systemPrompt(), variables == null ? Map.of() : variables);
+        String template = p.systemPrompt();
+        if (langfuse != null && langfuse.enabled()) {
+            var remote = langfuse.fetch(p.name());
+            if (remote.isPresent()) {
+                template = remote.get().prompt();
+                log.info("prompt 來源=Langfuse name={} version={}", p.name(), remote.get().version());
+            } else {
+                log.info("prompt 來源=DB(Langfuse fallback)name={} version={}", p.name(), p.version());
+            }
+        }
+        return PromptTemplate.render(template, variables == null ? Map.of() : variables);
     }
 }

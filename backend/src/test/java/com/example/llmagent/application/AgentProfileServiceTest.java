@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /** WP2-T3/T4 驗收:prompt 修改產生新 version、舊版可查;範本缺變數明確錯誤。 */
 class AgentProfileServiceTest {
 
-    private final AgentProfileService service = new AgentProfileService(new InMemoryAgentProfileStore());
+    private final AgentProfileService service = new AgentProfileService(new InMemoryAgentProfileStore(), null);
 
     @Test
     void updateAppendsNewVersionAndKeepsHistory() {

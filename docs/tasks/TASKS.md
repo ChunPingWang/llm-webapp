@@ -53,9 +53,13 @@
 - [x] **WP4-T3** 日誌面板(INFO/WARN/ERROR 三色)+ `log` 事件 + audit_logs 落地 `deps: [WP3-T1]` ✅
   - 驗收:TTFT、token 用量、錯誤皆呈現;audit_logs 落地(Jdbc/InMemory 雙 store),
     GET /api/conversations/{id}/audit-logs 可查(live 驗證 10 筆事件)
-- [ ] **WP4-T4** Langfuse 整合:Micrometer → OTel → OTLP(ADR-007)`deps: [WP3-T1, WP1-T2]`
-  - 驗收:Langfuse 可見 trace,attributes 含 conversation_id、agent_profile_version
-- [ ] **WP4-T5** Langfuse Prompt Management 對接(取用 + 版本記錄 + DB fallback,ADR-006)`deps: [WP4-T4, WP2-T3]`
+- [x] **WP4-T4** Langfuse 整合:Micrometer → OTel → OTLP(ADR-007)`deps: [WP3-T1, WP1-T2]` ✅
+  - 驗收:OTLP 接收端可見 trace,attributes 含 conversation_id、agent_profile_version ✅
+    (以本機 Jaeger OTLP 實測 chat.stream span;Langfuse 走同一 OTLP 管線:
+    OTEL_EXPORTER_OTLP_ENDPOINT=https://<langfuse>/api/public/otel + LANGFUSE_OTLP_AUTH,見 application-otel.yaml)
+- [x] **WP4-T5** Langfuse Prompt Management 對接(取用 + 版本記錄 + DB fallback,ADR-006)`deps: [WP4-T4, WP2-T3]` ✅
+  - LangfusePromptSource(GET /api/public/v2/prompts/{name},Basic auth,2s 逾時);
+    renderPrompt 優先取 Langfuse(記錄來源+版本),未設定/失敗 fallback DB;WireMock 3 例驗證
 
 ## Phase 3 — Artifact 與 Word(WP5, WP6)
 

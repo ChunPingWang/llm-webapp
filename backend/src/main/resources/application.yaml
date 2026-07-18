@@ -36,10 +36,18 @@ management:
     db:
       # 預設(in-memory 模式)不檢查 DB;postgres profile 開啟。
       enabled: false
+  tracing:
+    # 預設關閉;otel profile 開啟(WP4-T4,ADR-007)。
+    enabled: false
 
 # Provider 設定(ADR-001)。apiKey 一律以環境變數參照,禁止明碼(CLAUDE.md #8)。
 # ICA 為 OpenAI-Compatible Gateway;預設模型使用 ICA 最新 Claude。
 llmagent:
+  # Langfuse Prompt Management(WP4-T5;未設定 = 停用,自動 fallback DB)
+  langfuse:
+    host: ${LANGFUSE_HOST:}
+    public-key: ${LANGFUSE_PUBLIC_KEY:}
+    secret-key: ${LANGFUSE_SECRET_KEY:}
   cors:
     allowed-origins: "http://localhost:5173"
   chat:

@@ -39,19 +39,22 @@ public class ChatService {
     private final AgentProfileService agentProfiles;
     private final ArtifactService artifacts;
     private final com.example.llmagent.application.port.out.AuditLogStore auditLog;
+    private final io.micrometer.observation.ObservationRegistry observations;
 
     public ChatService(ChatModelPort chatModelPort,
                        ConversationStore store,
                        RuntimeSettingsService settings,
                        AgentProfileService agentProfiles,
                        ArtifactService artifacts,
-                       com.example.llmagent.application.port.out.AuditLogStore auditLog) {
+                       com.example.llmagent.application.port.out.AuditLogStore auditLog,
+                       io.micrometer.observation.ObservationRegistry observations) {
         this.chatModelPort = chatModelPort;
         this.store = store;
         this.settings = settings;
         this.agentProfiles = agentProfiles;
         this.artifacts = artifacts;
         this.auditLog = auditLog;
+        this.observations = observations;
     }
 
     /**
@@ -184,6 +187,17 @@ public class ChatService {
                 return Flux.fromIterable(evs);
             });
 
+            // 追蹤 span(WP4-T4,ADR-007):attributes 含 conversation_id / agent_profile_version
+            Integer profileVersion = c.messages().stream()
+                    .filter(m -> m.agentProfileVersion() != null)
+                    .reduce((a, b) -> b).map(Message::agentProfileVersion).orElse(null);
+            io.micrometer.observation.Observation obs =
+                    io.micrometer.observation.Observation.createNotStarted("chat.stream", observations)
+                            .lowCardinalityKeyValue("model", model)
+                            .highCardinalityKeyValue("conversation_id", c.id())
+                            .highCardinalityKeyValue("agent_profile_version",
+                                    profileVersion == null ? "none" : String.valueOf(profileVersion));
+
             return Flux.concat(startLog, body, tail)
                     .onErrorResume(err -> Flux.just(
                             StreamEvent.log("ERROR", "provider",
@@ -191,7 +205,9 @@ public class ChatService {
                             StreamEvent.done(new DoneInfo(new UsageInfo(0, 0),
                                     System.currentTimeMillis() - start, Math.max(ttft.get(), 0)))))
                     // 稽核落地(WP4-T3):log/done 事件同步寫入 audit_logs
-                    .doOnNext(ev -> audit(c.id(), ev));
+                    .doOnNext(ev -> audit(c.id(), ev))
+                    .doOnSubscribe(s -> obs.start())
+                    .doFinally(sig -> obs.stop());
         });
     }
 
