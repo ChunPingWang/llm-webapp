@@ -5,8 +5,20 @@ import { renderDocx } from "../api";
 /**
  * Word 預覽面板(WP6-T2,ADR-004)。將助理產出的需求文件 Markdown 送後端轉為 .docx,
  * 以 docx-preview 內嵌渲染成 Word 版面,並提供下載。
+ *
+ * variant="modal" 時內容以自然高度呈現,由外層 .modal-body 捲動(供錄影緩慢下滑)。
  */
-export function WordPreview({ markdown, title }: { markdown: string; title: string }) {
+export function WordPreview({
+  markdown,
+  title,
+  variant = "panel",
+  onExpand,
+}: {
+  markdown: string;
+  title: string;
+  variant?: "panel" | "modal";
+  onExpand?: () => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [blob, setBlob] = useState<Blob | null>(null);
@@ -29,7 +41,7 @@ export function WordPreview({ markdown, title }: { markdown: string; title: stri
           await renderAsync(b, container, undefined, {
             className: "docx",
             inWrapper: true,
-            ignoreWidth: true, // 於側欄寬度內回流,避免 A4 溢出
+            ignoreWidth: true,
             ignoreHeight: true,
             breakPages: false,
           });
@@ -66,9 +78,14 @@ export function WordPreview({ markdown, title }: { markdown: string; title: stri
           {status === "ready" && "Word 預覽(docx-preview)"}
           {status === "error" && "產生失敗"}
         </span>
-        <button onClick={download} disabled={!blob}>下載 .docx</button>
+        <div style={{ display: "flex", gap: "0.4rem" }}>
+          {onExpand && (
+            <button className="expand-btn" onClick={onExpand}>⤢ 放大</button>
+          )}
+          <button onClick={download} disabled={!blob}>下載 .docx</button>
+        </div>
       </div>
-      <div className="docx-host" ref={containerRef} />
+      <div className={`docx-host${variant === "modal" ? " docx-host--flow" : ""}`} ref={containerRef} />
     </div>
   );
 }

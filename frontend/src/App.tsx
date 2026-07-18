@@ -4,6 +4,8 @@ import { MessageView } from "./components/MessageView";
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { LogPanel } from "./components/LogPanel";
 import { WordPreview } from "./components/WordPreview";
+import { Modal } from "./components/Modal";
+import { Markdown } from "./components/Markdown";
 import type { ChatMessage, LogLine, ModelOption } from "./types";
 
 type Tab = "artifacts" | "word" | "logs";
@@ -32,6 +34,7 @@ export function App() {
   const [model, setModel] = useState(PREFERRED_DEFAULT);
   const [sending, setSending] = useState(false);
   const [tab, setTab] = useState<Tab>("artifacts");
+  const [modal, setModal] = useState<null | "word" | "code">(null);
   const convId = useRef<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
@@ -170,17 +173,38 @@ export function App() {
             </button>
           </div>
           <div className="tab-body">
-            {tab === "artifacts" && <ArtifactPanel sourceMarkdown={lastAssistant?.content ?? ""} />}
+            {tab === "artifacts" && (
+              <ArtifactPanel
+                sourceMarkdown={lastAssistant?.content ?? ""}
+                onExpand={() => setModal("code")}
+              />
+            )}
             {tab === "word" && (
               <WordPreview
                 markdown={lastAssistant?.streaming ? "" : (lastAssistant?.content ?? "")}
                 title={docTitle(lastAssistant?.content ?? "")}
+                onExpand={() => setModal("word")}
               />
             )}
             {tab === "logs" && <LogPanel logs={logs} />}
           </div>
         </aside>
       </main>
+
+      {modal === "word" && (
+        <Modal title="業務需求文件 · Word 預覽" onClose={() => setModal(null)}>
+          <WordPreview
+            variant="modal"
+            markdown={lastAssistant?.content ?? ""}
+            title={docTitle(lastAssistant?.content ?? "")}
+          />
+        </Modal>
+      )}
+      {modal === "code" && (
+        <Modal title="產出程式碼(Java / Cucumber)" onClose={() => setModal(null)}>
+          <Markdown>{lastAssistant?.content ?? ""}</Markdown>
+        </Modal>
+      )}
     </div>
   );
 }

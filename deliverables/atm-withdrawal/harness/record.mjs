@@ -29,51 +29,57 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 
+const t0 = Date.now();
+const ts = () => ((Date.now() - t0) / 1000).toFixed(1);
+const marks = [];
+const mark = (label) => { const t = ts(); marks.push({ label, t: Number(t) }); console.log(`[t=${t}s] ${label}`); };
+
+// 於指定容器由上而下緩慢捲動
+async function slowScroll(sel, durationMs) {
+  await page.evaluate(({ sel, dur }) => new Promise((resolve) => {
+    const el = document.querySelector(sel);
+    if (!el) return resolve();
+    const dist = el.scrollHeight - el.clientHeight;
+    if (dist <= 4) return resolve();
+    const start = performance.now();
+    function step(now) {
+      const t = Math.min(1, (now - start) / dur);
+      el.scrollTop = dist * t;
+      if (t < 1) requestAnimationFrame(step); else resolve();
+    }
+    el.scrollTop = 0;
+    requestAnimationFrame(step);
+  }), { sel, dur: durationMs });
+}
+
 const results = [];
 try {
   await page.goto(APP_URL, { waitUntil: "networkidle" });
+  mark("app loaded");
   await sleep(1500);
-  try {
-    await page.selectOption(".model-picker select", MODEL, { timeout: 5000 });
-  } catch {
-    console.log("model select skipped");
-  }
+  try { await page.selectOption(".model-picker select", MODEL, { timeout: 5000 }); } catch {}
   await sleep(800);
 
   for (let i = 0; i < PROMPTS.length; i++) {
     const stepNo = i + 1;
-    console.log(`=== Step ${stepNo}: sending prompt ===`);
-    await page.fill(".composer textarea", PROMPTS[i]);
+    // 附加不可見的 zero-width space,避免 ICA 完全相同 prompt 的快取命中(使串流真實呈現)
+    await page.fill(".composer textarea", PROMPTS[i] + "​");
     await sleep(500);
     await page.click(".composer button");
+    mark(`step${stepNo} send`);
 
-    // 串流期間切到「日誌」分頁,讓觀眾看到背景即時事件(TTFT / token / provider log)
+    // 串流期間切到「日誌」,展示背景即時事件
     await sleep(700);
     try { await page.click('.tabs button:has-text("日誌")'); } catch {}
 
-    // 等待該則 assistant 完成(.msg-meta 於 done 才渲染)
     await page.waitForFunction(
       (n) => document.querySelectorAll(".msg-assistant .msg-meta").length >= n,
-      stepNo,
-      { timeout: 600000 },
+      stepNo, { timeout: 600000 },
     );
-    await sleep(1200);
+    mark(`step${stepNo} done`);
+    await sleep(1000);
 
-    // 完成後切回對應產出物分頁展示成果
-    if (stepNo === 2) {
-      try {
-        await page.click('.tabs button:has-text("Word 預覽")');
-        await page.waitForSelector(".docx-host section.docx", { timeout: 30000 });
-        await sleep(3000); // 停留展示 Word 版面
-      } catch (e) {
-        console.log("word preview wait failed:", e.message);
-      }
-    } else {
-      try { await page.click('.tabs button:has-text("Artifacts")'); } catch {}
-      await sleep(2500);
-    }
-
-    // 擷取該則 assistant 文字與 code blocks(與右側分頁無關)
+    // 先擷取回覆(與 modal 無關)
     const data = await page.evaluate(() => {
       const msgs = document.querySelectorAll(".msg-assistant");
       const last = msgs[msgs.length - 1];
@@ -87,14 +93,57 @@ try {
     });
     results.push({ step: stepNo, prompt: PROMPTS[i], ...data });
     console.log(`Step ${stepNo} done. meta="${data.meta}" blocks=${data.blocks.length}`);
+
+    // === 呈現階段 ===
+    if (stepNo === 1) {
+      // Gherkin:於對話區由上而下緩慢捲動
+      await sleep(600);
+      mark("step1 scroll start");
+      await slowScroll(".messages", 9000);
+      mark("step1 scroll end");
+      await sleep(600);
+    } else if (stepNo === 2) {
+      // Word:切分頁 → 放大浮動視窗 → 緩慢下滑
+      try {
+        await page.click('.tabs button:has-text("Word 預覽")');
+        await page.waitForSelector(".docx-host section.docx", { timeout: 30000 });
+        await sleep(1000);
+        await page.click('button:has-text("放大")');
+        await page.waitForSelector(".modal-body section.docx", { timeout: 30000 });
+        await sleep(1200);
+        mark("step2 modal scroll start");
+        await slowScroll(".modal-body", 14000);
+        mark("step2 modal scroll end");
+        await sleep(800);
+        await page.click(".modal-close");
+        await sleep(600);
+      } catch (e) { console.log("step2 present failed:", e.message); }
+    } else if (stepNo === 3) {
+      // Java Code:切 Artifacts → 放大浮動視窗 → 緩慢下滑
+      try {
+        await page.click('.tabs button:has-text("Artifacts")');
+        await sleep(900);
+        await page.click('button:has-text("放大")');
+        await page.waitForSelector(".modal-body .markdown", { timeout: 20000 });
+        await sleep(1200);
+        mark("step3 modal scroll start");
+        await slowScroll(".modal-body", 18000);
+        mark("step3 modal scroll end");
+        await sleep(800);
+        await page.click(".modal-close");
+        await sleep(600);
+      } catch (e) { console.log("step3 present failed:", e.message); }
+    }
   }
-  await sleep(1500);
+  mark("finished");
+  await sleep(1200);
 } catch (err) {
   console.error("HARNESS ERROR:", err.message);
   results.push({ error: err.message });
 } finally {
   writeFileSync(`${OUT}/responses.json`, JSON.stringify(results, null, 2));
+  writeFileSync(`${OUT}/marks.json`, JSON.stringify(marks, null, 2));
   await context.close();
   await browser.close();
-  console.log("closed; video + responses written to", OUT);
+  console.log("closed; video + responses + marks written to", OUT);
 }

@@ -1,15 +1,16 @@
 :root {
-  --bg: #0f172a;
-  --panel: #1e293b;
-  --panel2: #172033;
-  --border: #334155;
-  --text: #e2e8f0;
-  --muted: #94a3b8;
-  --accent: #38bdf8;
-  --info: #38bdf8;
-  --warn: #fbbf24;
-  --error: #f87171;
-  --user: #1d4ed8;
+  --bg: #eef2f8;
+  --panel: #ffffff;
+  --panel2: #f6f8fc;
+  --border: #d3dbe8;
+  --text: #1e293b;
+  --muted: #607089;
+  --accent: #0ea5e9;
+  --info: #0284c7;
+  --warn: #d97706;
+  --error: #dc2626;
+  --user: #dbeafe;
+  --docx-bg: #cdd6e4;
   font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif;
 }
 
@@ -236,9 +237,15 @@ button:disabled { opacity: 0.55; cursor: default; }
 .docx-host {
   flex: 1;
   overflow: auto;
-  background: #3a3f44;
+  background: var(--docx-bg);
   border-radius: 8px;
   padding: 10px;
+}
+/* modal 版:內容自然高度,由 .modal-body 捲動 */
+.docx-host--flow {
+  flex: none;
+  overflow: visible;
+  height: auto;
 }
 /* docx-preview 產生的頁面:白底、深色文字,呈現 Word 版面 */
 .docx-host .docx-wrapper { background: transparent; padding: 0; }
@@ -288,3 +295,67 @@ button:disabled { opacity: 0.55; cursor: default; }
 }
 .markdown table { border-collapse: collapse; width: 100%; }
 .markdown th, .markdown td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; }
+
+/* 放大按鈕 */
+.expand-btn {
+  align-self: auto;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  background: var(--panel);
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+
+/* 浮動視窗 Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 2.5vh 2vw;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  width: min(1000px, 96vw);
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1.2rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel2);
+}
+.modal-title { font-weight: 700; font-size: 1.05rem; }
+.modal-header .modal-actions { display: flex; gap: 0.5rem; align-items: center; }
+.modal-close {
+  background: none;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.3rem 0.6rem;
+  font-size: 1rem;
+}
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 1.8rem;
+  background: var(--docx-bg);
+}
+.modal-body .markdown {
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 1.5rem 1.8rem;
+}
+.modal-body .markdown pre { font-size: 0.95rem; }

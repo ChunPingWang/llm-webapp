@@ -3,7 +3,13 @@ import { downloadArtifact, extractArtifacts, type Artifact } from "../lib/artifa
 import { Markdown } from "./Markdown";
 
 /** Artifact 面板:抽取 Gherkin / Java code fence,提供高亮、複製、下載(R2–R4)。 */
-export function ArtifactPanel({ sourceMarkdown }: { sourceMarkdown: string }) {
+export function ArtifactPanel({
+  sourceMarkdown,
+  onExpand,
+}: {
+  sourceMarkdown: string;
+  onExpand?: () => void;
+}) {
   const artifacts = extractArtifacts(sourceMarkdown);
 
   if (artifacts.length === 0) {
@@ -12,6 +18,12 @@ export function ArtifactPanel({ sourceMarkdown }: { sourceMarkdown: string }) {
 
   return (
     <div className="artifacts">
+      {onExpand && (
+        <div className="word-toolbar">
+          <span className="word-status">{artifacts.length} 個產出物</span>
+          <button className="expand-btn" onClick={onExpand}>⤢ 放大</button>
+        </div>
+      )}
       {artifacts.map((a) => (
         <ArtifactCard key={a.index} artifact={a} />
       ))}
