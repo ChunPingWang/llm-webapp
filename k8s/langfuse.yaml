@@ -1,0 +1,35 @@
+# 可觀測性(ADR-007):Langfuse 自架;backend 以 OTLP 匯出至此。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langfuse
+  namespace: llm-webapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: langfuse }
+  template:
+    metadata:
+      labels: { app: langfuse }
+    spec:
+      containers:
+        - name: langfuse
+          image: langfuse/langfuse:2
+          ports: [{ containerPort: 3000 }]
+          env:
+            - name: DATABASE_URL
+              value: postgresql://llmagent:$(POSTGRES_PASSWORD)@postgres:5432/llmagent
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: llm-webapp-secrets, key: POSTGRES_PASSWORD } }
+            - { name: NEXTAUTH_URL, value: http://langfuse:3000 }
+            - { name: NEXTAUTH_SECRET, value: change-me-in-secret }
+            - { name: SALT, value: change-me-in-secret }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: langfuse
+  namespace: llm-webapp
+spec:
+  selector: { app: langfuse }
+  ports: [{ port: 3000 }]

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: llm-webapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: backend }
+  template:
+    metadata:
+      labels: { app: backend }
+    spec:
+      containers:
+        - name: backend
+          image: REGISTRY/llm-webapp-backend:latest   # kustomize images 可覆寫
+          ports: [{ containerPort: 8080 }]
+          env:
+            - { name: SPRING_PROFILES_ACTIVE, value: "postgres,otel" }  # 企業 SSO 加 ,oidc
+            - { name: POSTGRES_URL, value: "jdbc:postgresql://postgres:5432/llmagent" }
+            - { name: POSTGRES_USER, value: llmagent }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: llm-webapp-secrets, key: POSTGRES_PASSWORD } }
+            - name: ICA_API_URL
+              valueFrom: { secretKeyRef: { name: llm-webapp-secrets, key: ICA_API_URL } }
+            - name: ICA_CLAUDE_KEY
+              valueFrom: { secretKeyRef: { name: llm-webapp-secrets, key: ICA_CLAUDE_KEY } }
+            - { name: LLMAGENT_STORAGE_ENDPOINT, value: "http://minio:9000" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://langfuse:3000/api/public/otel" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "1", memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: llm-webapp
+spec:
+  selector: { app: backend }
+  ports: [{ port: 8080 }]

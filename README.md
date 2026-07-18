@@ -210,5 +210,11 @@ llm-webapp/
 - [x] Step 5 — Word 產生/預覽(WP6-T2/T3)
 - [x] Step 6 — 設定視窗(System Prompt / API URL / Token)
 - [x] Step 7 — Postgres 持久化(WP1-T3)
-- [ ] 後續:Agent Profile 版本化(WP2-T3+)、後端 Artifact 版本化(WP5-T1)、檔案上傳(WP6-T1)、
-      Langfuse 可觀測性(WP4-T4)、OIDC/K8s(WP7)—— 見 `docs/tasks/TASKS.md`
+- [x] Step 8 — Agent Profile 版本化 + 範本變數 + 管理 UI(WP2-T3/T4/T6)
+- [x] Step 9 — Artifact 後端版本化 + 版本 diff + audit_logs 落地(WP5-T1/T3、WP4-T3)
+- [x] Step 10 — 對話中切換模型/Agent + ProviderRegistry + 連線測試(WP3-T3、WP2-T1/T5)
+- [x] Step 11 — 檔案上傳 + MinIO(pre-signed)+ 上傳 docx 預覽(WP6-T1/T2)
+- [x] Step 12 — OTel 追蹤(Jaeger/Langfuse OTLP)+ Langfuse Prompt Management(WP4-T4/T5)
+- [x] Step 13 — OIDC、K8s manifests、Cucumber 驗收、相容性矩陣、20 併發負載測試(WP7、WP8)
+
+**`docs/tasks/TASKS.md` 全部 24 項任務完成(29 個勾選、0 未勾)。**

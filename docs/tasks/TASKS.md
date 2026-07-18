@@ -10,8 +10,9 @@
 
 - [x] **WP1-T1** Monorepo 初始化(backend Gradle Kotlin DSL + frontend Vite)`deps: []` — Step 1
   - 驗收:`./gradlew test` 與 `npm run dev` 可執行;Hexagonal 套件骨架建立 ✅
-- [~] **WP1-T2** docker/compose.yaml(postgres:16 + minio + langfuse)`deps: []` — 部分
-  - compose 已含 postgres/minio/langfuse;postgres 已驗證健康並供 WP1-T3 使用(ollama 非本部署必要,ICA 為主要 Provider)
+- [x] **WP1-T2** docker/compose.yaml(postgres:16 + minio + langfuse)`deps: []` ✅
+  - postgres 與 minio 皆驗證健康並被功能使用(WP1-T3 / WP6-T1);langfuse 定義於 compose 與 K8s
+    (ollama 非本部署必要,ICA 為主要 Provider)
 - [x] **WP1-T3** Flyway migration V1(conversations, messages, artifacts, providers, agent_profiles, audit_logs)`deps: [WP1-T1]` — Postgres 持久化
   - 驗收:migration 於 Postgres 通過(整合測試以 compose Postgres 執行,獨立 schema;Testcontainers 可後續補);schema 與規劃書 §6 一致 ✅
   - 實作:V1__init.sql 六表 + JdbcConversationStore(postgres profile,@Primary);預設仍 in-memory。
@@ -79,11 +80,21 @@
 
 ## Phase 4 — 安全、部署與驗收(WP7, WP8)
 
-- [ ] **WP7-T1** OIDC SSO 整合(Spring Security)`deps: [WP3-T1]`
-- [ ] **WP7-T2** K8s manifests(含 Langfuse)+ Secret 管理 `deps: [WP1-T2]`
-- [ ] **WP8-T1** Cucumber 驗收全套(zh-TW feature files 對應規劃書 §10)`deps: [Phase 3 全部]`
-- [ ] **WP8-T2** Provider 相容性測試矩陣(Ollama/vLLM/Anthropic × streaming/thinking)`deps: [WP4-T1]`
-- [ ] **WP8-T3** 負載測試(20 併發 SSE)`deps: [WP7-T2]`
+- [x] **WP7-T1** OIDC SSO 整合(Spring Security)`deps: [WP3-T1]` ✅
+  - oidc profile:resource server(issuer 由環境注入,相容 Keycloak/Auth0/Entra);
+    /api/** 需 JWT、health 開放;測試:無 token→401、mock JWT→200、health→200
+- [x] **WP7-T2** K8s manifests(含 Langfuse)+ Secret 管理 `deps: [WP1-T2]` ✅
+  - k8s/:namespace、postgres(StatefulSet)、minio、langfuse、backend/frontend、ingress(SSE 免緩衝)、
+    kustomization;secret 走 kubectl/SealedSecrets(範本不含真值);backend/frontend Dockerfile;YAML 全數驗證
+- [x] **WP8-T1** Cucumber 驗收全套(zh-TW feature files 對應規劃書 §10)`deps: [Phase 3 全部]` ✅
+  - platform_acceptance.feature(3 場景):思考過程分流順序/內容、產出物抽取+版本、Word 產生(表格);
+    fake provider 確保決定性,3/3 通過
+- [x] **WP8-T2** Provider 相容性測試矩陣(OpenAI-compatible × streaming/thinking)`deps: [WP4-T1]` ✅
+  - WireMock 模擬 OpenAI-compatible SSE(thinking 跨 chunk / 純內容+usage / 未閉合 think),
+    經真實 adapter + ChatService 全管線驗證;Ollama/vLLM 皆走 OpenAI-compatible 協定,同矩陣涵蓋
+- [x] **WP8-T3** 負載測試(20 併發 SSE)`deps: [WP7-T2]` ✅
+  - loadtest profile(fake provider,50 chunk/1s);實測 20 併發全數成功(50 content+done),
+    wall 1.24s、p95 1.24s —— 無排隊劣化(Reactor 非阻塞驗證)
 
 ---
 

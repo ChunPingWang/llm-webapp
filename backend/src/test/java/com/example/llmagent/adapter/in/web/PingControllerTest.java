@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * WP1-T4 驗收:{@code GET /api/ping/stream} 回傳 event-stream 心跳,並以 done 收尾。
  */
 @WebFluxTest(controllers = PingController.class)
+@org.springframework.context.annotation.Import(SecurityConfig.class)
 class PingControllerTest {
 
     @Autowired
