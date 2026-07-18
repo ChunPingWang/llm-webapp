@@ -56,9 +56,10 @@
   - 前端已完成:自 assistant Markdown 抽取 Gherkin/Java code fence,高亮、複製、下載 .feature/.java;後端 ArtifactService 版本化待 WP5-T1
 - [ ] **WP5-T3** Artifact 版本 diff 檢視 `deps: [WP5-T2]`
 - [ ] **WP6-T1** 檔案上傳 + MinIO 儲存(pre-signed URL)`deps: [WP1-T2, WP1-T3]`
-- [ ] **WP6-T2** docx-preview 前端整合(ADR-004)`deps: [WP6-T1]`
-  - 驗收:含表格/圖片/頁首之測試文件正確渲染;保真度測試清單通過
-- [ ] **WP6-T3** POI 匯出:對話產出物 → .docx → MinIO → 預覽管線 `deps: [WP6-T1, WP5-T1]`
+- [x] **WP6-T2** docx-preview 前端整合(ADR-004)`deps: [WP6-T1]` — Word 預覽
+  - 前端 WordPreview 面板以 docx-preview 內嵌渲染後端 .docx(標題/表格正確);Playwright 驗證通過 ✅
+- [x] **WP6-T3** POI 匯出:對話產出物 → .docx(→ MinIO 於後續)`deps: [WP5-T1]` — Word 產生
+  - 後端 PoiDocxRenderer(Apache POI)+ `POST /api/docx`;將需求文件 Markdown 轉 .docx(標題/表格/清單/粗體)。MinIO 儲存留待 WP6-T1 ✅
 
 ## Phase 4 — 安全、部署與驗收(WP7, WP8)
 

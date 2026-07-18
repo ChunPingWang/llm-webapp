@@ -3,7 +3,16 @@ import { createConversation, fetchModels, postMessage, streamMessage } from "./a
 import { MessageView } from "./components/MessageView";
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { LogPanel } from "./components/LogPanel";
+import { WordPreview } from "./components/WordPreview";
 import type { ChatMessage, LogLine, ModelOption } from "./types";
+
+type Tab = "artifacts" | "word" | "logs";
+
+/** 由文件內容取標題:第一個 Markdown 標題,否則預設。 */
+function docTitle(markdown: string): string {
+  const m = markdown.match(/^#{1,3}\s+(.+)$/m);
+  return m ? m[1].trim() : "業務需求文件";
+}
 
 // 後端 /api/providers/ica/models 不可用時的後備清單。
 const FALLBACK_MODELS: ModelOption[] = [
@@ -22,7 +31,7 @@ export function App() {
   const [models, setModels] = useState<ModelOption[]>(FALLBACK_MODELS);
   const [model, setModel] = useState(PREFERRED_DEFAULT);
   const [sending, setSending] = useState(false);
-  const [tab, setTab] = useState<"artifacts" | "logs">("artifacts");
+  const [tab, setTab] = useState<Tab>("artifacts");
   const convId = useRef<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
@@ -153,16 +162,22 @@ export function App() {
             <button className={tab === "artifacts" ? "active" : ""} onClick={() => setTab("artifacts")}>
               Artifacts
             </button>
+            <button className={tab === "word" ? "active" : ""} onClick={() => setTab("word")}>
+              Word 預覽
+            </button>
             <button className={tab === "logs" ? "active" : ""} onClick={() => setTab("logs")}>
               日誌{logs.length > 0 ? ` (${logs.length})` : ""}
             </button>
           </div>
           <div className="tab-body">
-            {tab === "artifacts" ? (
-              <ArtifactPanel sourceMarkdown={lastAssistant?.content ?? ""} />
-            ) : (
-              <LogPanel logs={logs} />
+            {tab === "artifacts" && <ArtifactPanel sourceMarkdown={lastAssistant?.content ?? ""} />}
+            {tab === "word" && (
+              <WordPreview
+                markdown={lastAssistant?.streaming ? "" : (lastAssistant?.content ?? "")}
+                title={docTitle(lastAssistant?.content ?? "")}
+              />
             )}
+            {tab === "logs" && <LogPanel logs={logs} />}
           </div>
         </aside>
       </main>

@@ -222,6 +222,36 @@ button:disabled { opacity: 0.55; cursor: default; }
 .artifact-actions { margin-left: auto; display: flex; gap: 0.4rem; }
 .artifact-actions button { padding: 0.25rem 0.6rem; font-size: 0.78rem; }
 
+/* Word 預覽 */
+.word-preview { display: flex; flex-direction: column; height: 100%; }
+.word-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.word-status { color: var(--muted); font-size: 0.8rem; }
+.word-toolbar button { padding: 0.3rem 0.7rem; font-size: 0.8rem; align-self: auto; }
+.docx-host {
+  flex: 1;
+  overflow: auto;
+  background: #3a3f44;
+  border-radius: 8px;
+  padding: 10px;
+}
+/* docx-preview 產生的頁面:白底、深色文字,呈現 Word 版面 */
+.docx-host .docx-wrapper { background: transparent; padding: 0; }
+.docx-host .docx-wrapper > section.docx {
+  background: #ffffff;
+  color: #111;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  margin: 0 auto 12px;
+  padding: 20px 24px !important;
+  width: 100% !important;
+  min-height: auto !important;
+}
+
 /* Logs */
 .logs { list-style: none; margin: 0; padding: 0; font-size: 0.82rem; }
 .logs li {

@@ -44,6 +44,9 @@ llmagent:
       2. 產生程式碼時,輸出完整可編譯的檔案。每個檔案獨立一個 code fence,並在 fence 內第一行以註解標明相對路徑
          (例如 // src/main/java/com/example/atm/domain/Account.java);遵循 DDD 分層(domain / application / infrastructure)
          與 SOLID 原則,提供對應的 Cucumber step definitions、JUnit 5 test runner 與必要單元測試,力求測試涵蓋率 ≥ 80%。
+      2a. Cucumber step definitions 一律使用「英文」annotation(@Given / @When / @Then / @And,匯入 io.cucumber.java.en.*),
+          不要使用本地化中文 annotation(如 @假設/@當/@那麼)以降低出錯風險;feature 檔仍保留繁體中文關鍵字。
+          Cucumber 以「步驟文字」比對 step definition,與關鍵字語言無關,故繁中 feature 搭配英文 annotation 完全相容。
       3. 需要產生文件時,以結構化 Markdown(標題階層、表格、清單)呈現,內容完整、可直接轉為 Word。
       4. 回答精確、聚焦、不冗長;一律使用 Java 21 語法;避免省略(不要用「...」略過實作)。
   providers:

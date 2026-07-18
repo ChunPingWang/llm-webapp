@@ -1,5 +1,16 @@
 import type { DoneInfo, LogLine, ModelOption } from "./types";
 
+/** 將 Markdown 文件轉為 Word(.docx)Blob(WP6-T3);後端 Apache POI 產生。 */
+export async function renderDocx(markdown: string, title: string): Promise<Blob> {
+  const res = await fetch("/api/docx", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ markdown, title }),
+  });
+  if (!res.ok) throw new Error(`renderDocx failed: ${res.status}`);
+  return res.blob();
+}
+
 /** 動態拉取 Provider 模型清單(WP2-T2)。後端已將 Claude 置前。 */
 export async function fetchModels(providerId = "ica"): Promise<ModelOption[]> {
   const res = await fetch(`/api/providers/${providerId}/models`);
