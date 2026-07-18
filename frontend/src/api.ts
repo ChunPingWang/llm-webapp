@@ -1,5 +1,34 @@
 import type { DoneInfo, LogLine, ModelOption } from "./types";
 
+export interface Settings {
+  systemPrompt: string;
+  baseUrl: string;
+  apiKeyMasked: string;
+  defaultModelId: string;
+}
+
+/** 取得執行期設定(token 遮罩)。 */
+export async function fetchSettings(): Promise<Settings> {
+  const res = await fetch("/api/settings");
+  if (!res.ok) throw new Error(`fetchSettings failed: ${res.status}`);
+  return res.json();
+}
+
+/** 更新執行期設定;空欄位表示維持不變。 */
+export async function updateSettings(patch: {
+  systemPrompt?: string;
+  baseUrl?: string;
+  apiKey?: string;
+}): Promise<Settings> {
+  const res = await fetch("/api/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`updateSettings failed: ${res.status}`);
+  return res.json();
+}
+
 /** 將 Markdown 文件轉為 Word(.docx)Blob(WP6-T3);後端 Apache POI 產生。 */
 export async function renderDocx(markdown: string, title: string): Promise<Blob> {
   const res = await fetch("/api/docx", {

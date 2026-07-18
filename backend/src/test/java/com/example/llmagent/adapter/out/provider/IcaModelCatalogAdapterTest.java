@@ -8,6 +8,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.example.llmagent.application.ChatProperties;
+import com.example.llmagent.application.RuntimeSettingsService;
 import com.example.llmagent.domain.provider.ModelInfo;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -32,9 +34,9 @@ class IcaModelCatalogAdapterTest {
     void setUp() {
         wm = new WireMockServer(options().dynamicPort());
         wm.start();
-        IcaProviderProperties props = new IcaProviderProperties(
-                "OPENAI_COMPATIBLE", wm.baseUrl() + "/v1", "test-key", "claude-opus-4-8");
-        adapter = new IcaModelCatalogAdapter(WebClient.builder(), props);
+        RuntimeSettingsService settings = new RuntimeSettingsService(
+                new ChatProperties("claude-opus-4-8", "sys"), wm.baseUrl(), "test-key");
+        adapter = new IcaModelCatalogAdapter(WebClient.builder(), settings);
     }
 
     @AfterEach

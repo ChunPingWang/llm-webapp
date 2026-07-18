@@ -9,37 +9,60 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.example.llmagent.application.RuntimeSettingsService;
 import com.example.llmagent.application.port.out.ModelCatalogPort;
 import com.example.llmagent.domain.provider.ModelInfo;
 
 import reactor.core.publisher.Flux;
 
 /**
- * ICA 模型清單 adapter(WP2-T2)。呼叫 OpenAI-Compatible {@code /models} 管理端點,
- * 3 秒逾時快速失敗(規劃書 §4「model list 拉取需設短 timeout」)。
+ * ICA 模型清單 adapter(WP2-T2)。呼叫 OpenAI-Compatible {@code /v1/models} 管理端點,
+ * 3 秒逾時快速失敗(規劃書 §4)。連線參數來自 {@link RuntimeSettingsService},
+ * 執行期修改 URL/token 後,下次呼叫即用新值。
  */
 @Component
 public class IcaModelCatalogAdapter implements ModelCatalogPort {
 
     private static final Logger log = LoggerFactory.getLogger(IcaModelCatalogAdapter.class);
     private static final Duration TIMEOUT = Duration.ofSeconds(3);
+    private static final String PROVIDER_ID = "ica";
 
-    private final WebClient webClient;
+    private final RuntimeSettingsService settings;
+    private final WebClient.Builder builder;
 
-    public IcaModelCatalogAdapter(WebClient.Builder builder, IcaProviderProperties props) {
-        this.webClient = builder
-                .baseUrl(props.baseUrl())
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.apiKey())
-                .build();
+    private volatile WebClient webClient;
+    private volatile long builtVersion = -1;
+
+    public IcaModelCatalogAdapter(WebClient.Builder builder, RuntimeSettingsService settings) {
+        this.builder = builder;
+        this.settings = settings;
+    }
+
+    private WebClient client() {
+        long v = settings.version();
+        WebClient c = webClient;
+        if (c == null || builtVersion != v) {
+            synchronized (this) {
+                if (webClient == null || builtVersion != settings.version()) {
+                    webClient = builder.clone()
+                            .baseUrl(settings.baseUrl())
+                            .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + settings.apiKey())
+                            .build();
+                    builtVersion = settings.version();
+                }
+                c = webClient;
+            }
+        }
+        return c;
     }
 
     @Override
     public Flux<ModelInfo> listModels(String providerId) {
-        if (!IcaProviderProperties.PROVIDER_ID.equals(providerId)) {
+        if (!PROVIDER_ID.equals(providerId)) {
             return Flux.empty();
         }
-        return webClient.get()
-                .uri("/models")
+        return client().get()
+                .uri("/v1/models")
                 .retrieve()
                 .bodyToMono(OpenAiModelsResponse.class)
                 .timeout(TIMEOUT)

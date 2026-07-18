@@ -22,7 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ChatServiceTest {
 
-    private final ChatProperties props = new ChatProperties("claude-opus-4-8", "system");
+    private final RuntimeSettingsService settings = new RuntimeSettingsService(
+            new ChatProperties("claude-opus-4-8", "system"), "http://localhost", "test-key");
 
     @Test
     void streamsThinkingContentAndDone() {
@@ -33,7 +34,7 @@ class ChatServiceTest {
                 ChatChunk.finalUsage(new Usage(12, 7)));
 
         InMemoryConversationStore store = new InMemoryConversationStore();
-        ChatService service = new ChatService(fakePort, store, props);
+        ChatService service = new ChatService(fakePort, store, settings);
 
         Conversation c = service.createConversation("t", null, null, null);
         String messageId = service.addUserMessage(c.id(), "hi");

@@ -35,16 +35,14 @@ public class ChatService {
 
     private final ChatModelPort chatModelPort;
     private final ConversationStore store;
-    private final String defaultModelId;
-    private final String defaultSystemPrompt;
+    private final RuntimeSettingsService settings;
 
     public ChatService(ChatModelPort chatModelPort,
                        ConversationStore store,
-                       ChatProperties props) {
+                       RuntimeSettingsService settings) {
         this.chatModelPort = chatModelPort;
         this.store = store;
-        this.defaultModelId = props.defaultModelId();
-        this.defaultSystemPrompt = props.defaultSystemPrompt();
+        this.settings = settings;
     }
 
     /** 建立對話。modelId / systemPrompt 為空時採預設。 */
@@ -53,8 +51,8 @@ public class ChatService {
         Conversation c = new Conversation(
                 UUID.randomUUID().toString(),
                 title == null || title.isBlank() ? "新對話" : title,
-                systemPrompt == null || systemPrompt.isBlank() ? defaultSystemPrompt : systemPrompt,
-                modelId == null || modelId.isBlank() ? defaultModelId : modelId,
+                systemPrompt == null || systemPrompt.isBlank() ? settings.systemPrompt() : systemPrompt,
+                modelId == null || modelId.isBlank() ? settings.defaultModelId() : modelId,
                 temperature,
                 Instant.now());
         store.save(c);

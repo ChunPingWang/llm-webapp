@@ -11,8 +11,10 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.stereotype.Component;
 
+import com.example.llmagent.application.RuntimeSettingsService;
 import com.example.llmagent.application.port.out.ChatCall;
 import com.example.llmagent.application.port.out.ChatModelPort;
 import com.example.llmagent.domain.chat.ChatChunk;
@@ -24,16 +26,47 @@ import reactor.core.publisher.Flux;
  * ICA(OpenAI-Compatible)Provider adapter,透過 Spring AI {@link OpenAiChatModel}
  * ({@code ChatModel} 介面)串流呼叫(ADR-001、CLAUDE.md #3)。
  *
- * <p>base-url / api-key / model 由 {@code spring.ai.openai.*} 設定(見 application.yaml),
- * 指向 {@code ${ICA_API_URL}} 與 {@code ${ICA_CLAUDE_KEY}}。
+ * <p>連線參數(base URL / API key)來自 {@link RuntimeSettingsService},可於執行期修改;
+ * 設定版本變更時延遲重建底層 client。
  */
 @Component
 public class SpringAiChatModelAdapter implements ChatModelPort {
 
-    private final OpenAiChatModel chatModel;
+    private final RuntimeSettingsService settings;
 
-    public SpringAiChatModelAdapter(OpenAiChatModel chatModel) {
-        this.chatModel = chatModel;
+    private volatile OpenAiChatModel chatModel;
+    private volatile long builtVersion = -1;
+
+    public SpringAiChatModelAdapter(RuntimeSettingsService settings) {
+        this.settings = settings;
+    }
+
+    private OpenAiChatModel model() {
+        long v = settings.version();
+        OpenAiChatModel m = chatModel;
+        if (m == null || builtVersion != v) {
+            synchronized (this) {
+                if (chatModel == null || builtVersion != settings.version()) {
+                    OpenAiApi api = OpenAiApi.builder()
+                            .baseUrl(settings.baseUrl())
+                            .apiKey(settings.apiKey())
+                            .build();
+                    chatModel = OpenAiChatModel.builder()
+                            .openAiApi(api)
+                            .defaultOptions(OpenAiChatOptions.builder()
+                                    .model(settings.defaultModelId())
+                                    // ICA(litellm)對 Claude 僅接受 temperature=1
+                                    .temperature(1.0)
+                                    // 避免完整程式碼/文件被預設 4096 截斷
+                                    .maxTokens(32000)
+                                    .build())
+                            .build();
+                    builtVersion = settings.version();
+                }
+                m = chatModel;
+            }
+        }
+        return m;
     }
 
     @Override
@@ -46,7 +79,7 @@ public class SpringAiChatModelAdapter implements ChatModelPort {
         }
 
         Prompt prompt = new Prompt(toSpringMessages(call), options.build());
-        return chatModel.stream(prompt).map(this::toChunk);
+        return model().stream(prompt).map(this::toChunk);
     }
 
     private List<org.springframework.ai.chat.messages.Message> toSpringMessages(ChatCall call) {

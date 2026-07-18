@@ -6,6 +6,7 @@ import { LogPanel } from "./components/LogPanel";
 import { WordPreview } from "./components/WordPreview";
 import { Modal } from "./components/Modal";
 import { Markdown } from "./components/Markdown";
+import { SettingsModal } from "./components/SettingsModal";
 import type { ChatMessage, LogLine, ModelOption } from "./types";
 
 type Tab = "artifacts" | "word" | "logs";
@@ -41,7 +42,7 @@ export function App() {
   const [model, setModel] = useState(PREFERRED_DEFAULT);
   const [sending, setSending] = useState(false);
   const [tab, setTab] = useState<Tab>("artifacts");
-  const [modal, setModal] = useState<null | "word" | "code">(null);
+  const [modal, setModal] = useState<null | "word" | "code" | "settings">(null);
   const convId = useRef<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
@@ -135,6 +136,13 @@ export function App() {
             ))}
           </select>
           <span className="provider-tag">ICA · {models.length} 模型</span>
+          <button
+            className="settings-btn"
+            onClick={() => setModal("settings")}
+            title="設定(System Prompt / API 連線)"
+          >
+            ⚙ 設定
+          </button>
         </div>
       </header>
 
@@ -212,6 +220,7 @@ export function App() {
           <Markdown>{lastAssistant?.content ?? ""}</Markdown>
         </Modal>
       )}
+      {modal === "settings" && <SettingsModal onClose={() => setModal(null)} />}
     </div>
   );
 }

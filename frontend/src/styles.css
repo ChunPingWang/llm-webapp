@@ -296,6 +296,48 @@ button:disabled { opacity: 0.55; cursor: default; }
 .markdown table { border-collapse: collapse; width: 100%; }
 .markdown th, .markdown td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; }
 
+/* 設定 */
+.settings-btn {
+  background: var(--panel);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  align-self: auto;
+}
+.settings-form {
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 1.2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+.settings-form h3 { margin: 0 0 0.2rem; }
+.settings-form .hint { color: var(--muted); font-size: 0.83rem; margin: 0.2rem 0 0.6rem; }
+.settings-prompt {
+  width: 100%;
+  resize: vertical;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+.field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.8rem; }
+.field span { font-size: 0.83rem; color: var(--muted); }
+.field input {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.9rem;
+}
+
 /* 放大按鈕 */
 .expand-btn {
   align-self: auto;
