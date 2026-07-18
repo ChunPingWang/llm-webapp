@@ -59,4 +59,15 @@ const c2 = await streamContent(m2.messageId);
 console.log("step2 len", c2.length);
 writeFileSync(`${OUT}/step2-raw.md`, c2);
 
+// 以後端 /api/docx 產生 .docx(與 app 內 Word 預覽相同來源)
+const title = (c2.match(/^#{1,3}\s+(.+)$/m)?.[1] ?? "業務需求文件").trim();
+const dres = await fetch(`${B}/api/docx`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ markdown: c2, title }),
+});
+const buf = Buffer.from(await dres.arrayBuffer());
+writeFileSync(`${OUT}/business-requirements.docx`, buf);
+console.log("docx bytes", buf.length, "title", title);
+
 console.log("done");

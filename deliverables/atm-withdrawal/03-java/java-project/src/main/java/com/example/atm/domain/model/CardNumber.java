@@ -3,7 +3,7 @@ package com.example.atm.domain.model;
 import java.util.Objects;
 
 /**
- * 卡號值物件（Value Object）。
+ * 值物件：提款卡卡號。
  */
 public record CardNumber(String value) {
 

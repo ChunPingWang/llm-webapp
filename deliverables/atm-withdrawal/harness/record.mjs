@@ -33,12 +33,10 @@ const results = [];
 try {
   await page.goto(APP_URL, { waitUntil: "networkidle" });
   await sleep(1500);
-
-  // 確保模型為 claude-opus-4-8
   try {
     await page.selectOption(".model-picker select", MODEL, { timeout: 5000 });
   } catch {
-    console.log("model select skipped (option not present yet)");
+    console.log("model select skipped");
   }
   await sleep(800);
 
@@ -49,35 +47,46 @@ try {
     await sleep(500);
     await page.click(".composer button");
 
-    // 等待第 stepNo 則 assistant 訊息出現 .msg-meta(done 才會渲染)
+    // 串流期間切到「日誌」分頁,讓觀眾看到背景即時事件(TTFT / token / provider log)
+    await sleep(700);
+    try { await page.click('.tabs button:has-text("日誌")'); } catch {}
+
+    // 等待該則 assistant 完成(.msg-meta 於 done 才渲染)
     await page.waitForFunction(
       (n) => document.querySelectorAll(".msg-assistant .msg-meta").length >= n,
       stepNo,
       { timeout: 600000 },
     );
-    await sleep(1500); // 讓串流游標收尾、Artifact 面板更新
+    await sleep(1200);
 
-    // 擷取該則 assistant 的文字與 code blocks
+    // 完成後切回對應產出物分頁展示成果
+    if (stepNo === 2) {
+      try {
+        await page.click('.tabs button:has-text("Word 預覽")');
+        await page.waitForSelector(".docx-host section.docx", { timeout: 30000 });
+        await sleep(3000); // 停留展示 Word 版面
+      } catch (e) {
+        console.log("word preview wait failed:", e.message);
+      }
+    } else {
+      try { await page.click('.tabs button:has-text("Artifacts")'); } catch {}
+      await sleep(2500);
+    }
+
+    // 擷取該則 assistant 文字與 code blocks(與右側分頁無關)
     const data = await page.evaluate(() => {
       const msgs = document.querySelectorAll(".msg-assistant");
       const last = msgs[msgs.length - 1];
       const text = last.querySelector(".msg-body")?.innerText ?? "";
       const meta = last.querySelector(".msg-meta")?.innerText ?? "";
       const blocks = Array.from(last.querySelectorAll("pre code")).map((c) => {
-        const cls = c.className || "";
-        const m = cls.match(/language-([\w+-]+)/);
+        const m = (c.className || "").match(/language-([\w+-]+)/);
         return { lang: m ? m[1] : "text", code: c.textContent ?? "" };
       });
       return { text, meta, blocks };
     });
     results.push({ step: stepNo, prompt: PROMPTS[i], ...data });
     console.log(`Step ${stepNo} done. meta="${data.meta}" blocks=${data.blocks.length}`);
-
-    // 若有 Artifacts,切到 Artifacts 分頁展示於影片
-    if (stepNo === 1 || stepNo === 3) {
-      try { await page.click('.tabs button:has-text("Artifacts")'); } catch {}
-      await sleep(1500);
-    }
   }
   await sleep(1500);
 } catch (err) {
@@ -85,7 +94,7 @@ try {
   results.push({ error: err.message });
 } finally {
   writeFileSync(`${OUT}/responses.json`, JSON.stringify(results, null, 2));
-  await context.close(); // flush video
+  await context.close();
   await browser.close();
   console.log("closed; video + responses written to", OUT);
 }

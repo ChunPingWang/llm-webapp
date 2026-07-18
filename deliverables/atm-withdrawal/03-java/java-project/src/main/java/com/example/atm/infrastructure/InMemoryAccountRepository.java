@@ -2,14 +2,14 @@ package com.example.atm.infrastructure;
 
 import com.example.atm.domain.model.Account;
 import com.example.atm.domain.model.CardNumber;
-import com.example.atm.domain.port.AccountRepository;
+import com.example.atm.domain.repository.AccountRepository;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
 
 /**
- * 記憶體版帳戶儲存庫實作（Adapter）。
+ * 基礎設施：記憶體版帳戶儲存庫。
  */
 public class InMemoryAccountRepository implements AccountRepository {
 
