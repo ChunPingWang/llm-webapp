@@ -44,7 +44,8 @@ public class ChatController {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateConversationResponse createConversation(@RequestBody CreateConversationRequest req) {
         Conversation c = chatService.createConversation(
-                req.title(), req.modelId(), req.systemPrompt(), req.temperature());
+                req.title(), req.modelId(), req.systemPrompt(), req.temperature(),
+                req.agentProfileId(), req.promptVariables());
         return new CreateConversationResponse(c.id(), c.defaultModelId(), c.title());
     }
 

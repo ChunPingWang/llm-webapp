@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createConversation, fetchModels, postMessage, streamMessage } from "./api";
+import {
+  createConversation,
+  fetchAgentProfiles,
+  fetchModels,
+  postMessage,
+  streamMessage,
+  type AgentProfile,
+} from "./api";
+import { AgentProfilesModal } from "./components/AgentProfilesModal";
 import { MessageView } from "./components/MessageView";
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { LogPanel } from "./components/LogPanel";
@@ -42,9 +50,17 @@ export function App() {
   const [model, setModel] = useState(PREFERRED_DEFAULT);
   const [sending, setSending] = useState(false);
   const [tab, setTab] = useState<Tab>("artifacts");
-  const [modal, setModal] = useState<null | "word" | "code" | "settings">(null);
+  const [modal, setModal] = useState<null | "word" | "code" | "settings" | "profiles">(null);
+  const [profiles, setProfiles] = useState<AgentProfile[]>([]);
+  const [profileId, setProfileId] = useState<string>(""); // "" = 全域預設 prompt
   const convId = useRef<string | null>(null);
+  const convKey = useRef<string>(""); // model+profile;變更時開新對話
   const esRef = useRef<EventSource | null>(null);
+
+  // Agent Profile 清單(WP2-T6)
+  useEffect(() => {
+    fetchAgentProfiles().then(setProfiles).catch(() => {});
+  }, [modal]); // 管理視窗關閉後重新載入
 
   // 開啟時動態拉取 ICA 模型清單(WP2-T2);失敗則沿用後備清單。
   useEffect(() => {
@@ -79,8 +95,14 @@ export function App() {
     setInput("");
 
     try {
-      if (!convId.current) {
-        convId.current = await createConversation(model);
+      // 模型或 Agent Profile 變更 → 開新對話(訊息級切換見 WP3-T3)
+      const key = `${model}|${profileId}`;
+      if (!convId.current || convKey.current !== key) {
+        convId.current = await createConversation(model, profileId || undefined, {
+          project_name: "llm-webapp",
+          gherkin_locale: "zh-TW",
+        });
+        convKey.current = key;
       }
       const userMsg: ChatMessage = {
         id: nextId(), role: "user", content: text, thinking: "", logs: [], streaming: false,
@@ -129,6 +151,16 @@ export function App() {
       <header className="topbar">
         <h1>LLM Agent 平台</h1>
         <div className="model-picker">
+          <label>Agent</label>
+          <select value={profileId} onChange={(e) => setProfileId(e.target.value)} disabled={sending}>
+            <option value="">（全域預設）</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>{p.name} v{p.version}</option>
+            ))}
+          </select>
+          <button className="settings-btn" onClick={() => setModal("profiles")} title="Agent Profile 管理">
+            管理
+          </button>
           <label>模型</label>
           <select value={model} onChange={(e) => setModel(e.target.value)} disabled={sending}>
             {models.map((m) => (
@@ -221,6 +253,7 @@ export function App() {
         </Modal>
       )}
       {modal === "settings" && <SettingsModal onClose={() => setModal(null)} />}
+      {modal === "profiles" && <AgentProfilesModal onClose={() => setModal(null)} />}
     </div>
   );
 }

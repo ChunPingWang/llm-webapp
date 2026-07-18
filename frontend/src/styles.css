@@ -338,6 +338,46 @@ button:disabled { opacity: 0.55; cursor: default; }
   font-size: 0.9rem;
 }
 
+/* Agent Profiles */
+.profiles-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 1rem;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 1rem;
+  min-height: 60vh;
+}
+.profiles-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.profile-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  font-weight: 500;
+}
+.profile-item.active { border-color: var(--accent); background: rgba(14, 165, 233, 0.08); }
+.profile-item .profile-ver { color: var(--muted); font-size: 0.75rem; }
+.profile-new { color: var(--accent); justify-content: center; }
+.profile-editor { display: flex; flex-direction: column; }
+.versions { margin-top: 0.6rem; }
+.version-list { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+.version-list li { border-bottom: 1px solid var(--border); padding: 0.3rem 0; }
+.version-list summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+.version-list pre {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+}
+
 /* 放大按鈕 */
 .expand-btn {
   align-self: auto;

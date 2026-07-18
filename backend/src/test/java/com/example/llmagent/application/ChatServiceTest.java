@@ -34,9 +34,10 @@ class ChatServiceTest {
                 ChatChunk.finalUsage(new Usage(12, 7)));
 
         InMemoryConversationStore store = new InMemoryConversationStore();
-        ChatService service = new ChatService(fakePort, store, settings);
+        ChatService service = new ChatService(fakePort, store, settings,
+                new AgentProfileService(new com.example.llmagent.adapter.out.persistence.InMemoryAgentProfileStore()));
 
-        Conversation c = service.createConversation("t", null, null, null);
+        Conversation c = service.createConversation("t", null, null, null, null, null);
         String messageId = service.addUserMessage(c.id(), "hi");
 
         List<StreamEvent> events = service.streamAssistant(messageId).collectList().block();

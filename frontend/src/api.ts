@@ -1,5 +1,41 @@
 import type { DoneInfo, LogLine, ModelOption } from "./types";
 
+export interface AgentProfile {
+  id: string;
+  version: number;
+  name: string;
+  description: string | null;
+  systemPrompt: string;
+  defaultModelId: string | null;
+  temperature: number | null;
+  enabled: boolean;
+}
+
+export async function fetchAgentProfiles(): Promise<AgentProfile[]> {
+  const res = await fetch("/api/agent-profiles");
+  if (!res.ok) throw new Error(`fetchAgentProfiles failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAgentProfileVersions(id: string): Promise<AgentProfile[]> {
+  const res = await fetch(`/api/agent-profiles/${id}/versions`);
+  if (!res.ok) throw new Error(`versions failed: ${res.status}`);
+  return res.json();
+}
+
+export async function saveAgentProfile(
+  id: string | null,
+  body: { name: string; description?: string; systemPrompt: string; defaultModelId?: string },
+): Promise<AgentProfile> {
+  const res = await fetch(id ? `/api/agent-profiles/${id}` : "/api/agent-profiles", {
+    method: id ? "PUT" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`saveAgentProfile failed: ${res.status}`);
+  return res.json();
+}
+
 export interface Settings {
   systemPrompt: string;
   baseUrl: string;
@@ -48,12 +84,16 @@ export async function fetchModels(providerId = "ica"): Promise<ModelOption[]> {
   return data.map((m) => ({ id: m.id, label: m.id }));
 }
 
-/** 建立對話,回傳 conversationId。 */
-export async function createConversation(modelId: string): Promise<string> {
+/** 建立對話,回傳 conversationId。可指定 Agent Profile(其 prompt/模型作為預設)。 */
+export async function createConversation(
+  modelId: string,
+  agentProfileId?: string,
+  promptVariables?: Record<string, string>,
+): Promise<string> {
   const res = await fetch("/api/conversations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: "對話", modelId }),
+    body: JSON.stringify({ title: "對話", modelId, agentProfileId, promptVariables }),
   });
   if (!res.ok) throw new Error(`createConversation failed: ${res.status}`);
   return (await res.json()).conversationId;

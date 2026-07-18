@@ -26,12 +26,14 @@
 - [x] **WP2-T2** 模型清單動態拉取 API `GET /api/providers/{id}/models` `deps: [WP2-T1]` — Step 4
   - 驗收:WireMock 模擬 Ollama `/api/tags` 與 OpenAI `/v1/models`;timeout 3s 快速失敗 ✅
   - 實作:IcaModelCatalogAdapter(WebClient,3s timeout,錯誤→空串流)、ModelService(Claude 置前)、ProviderController;WireMock 4 例(解析/未知 provider/500 快速失敗/5s 逾時)通過;前端模型選擇器改為動態拉取(後備清單容錯)。Live 驗證 ICA 回 18 模型 ✅
-- [ ] **WP2-T3** Agent Profile CRUD + prompt 版本化(append-only)`deps: [WP1-T3]`
-  - 驗收:feature `agent_profile.feature` 全過;修改 prompt 產生新 version,舊版可查
-- [ ] **WP2-T4** PromptTemplate 變數套用(`{project_name}`、`{gherkin_locale}`)`deps: [WP2-T3]`
-  - 驗收:缺變數時明確錯誤;套用結果單元測試驗證
+- [x] **WP2-T3** Agent Profile CRUD + prompt 版本化(append-only)`deps: [WP1-T3]`
+  - 驗收:修改 prompt 產生新 version,舊版可查 ✅(AgentProfileServiceTest + live 驗證 v1→v2 歷史完整;
+    InMemory/Jdbc 雙 store;內建三 Profile 種子:BDD 規格 / Java 產碼 / Code Review)
+- [x] **WP2-T4** PromptTemplate 變數套用(`{project_name}`、`{gherkin_locale}`)`deps: [WP2-T3]`
+  - 驗收:缺變數時明確錯誤(400,列出全部缺漏)✅;套用結果單元測試驗證 ✅
 - [ ] **WP2-T5** Provider 管理 UI + 連線測試按鈕 `deps: [WP2-T2]`
-- [ ] **WP2-T6** Agent Profile 管理 UI(含版本歷史檢視)`deps: [WP2-T3]`
+- [x] **WP2-T6** Agent Profile 管理 UI(含版本歷史檢視)`deps: [WP2-T3]` ✅
+  - 頂欄 Agent 選擇器 + 管理浮動視窗(清單/編輯→新版本/版本歷史 details 展開)
 
 ## Phase 2 — 對話與串流(WP3, WP4)
 

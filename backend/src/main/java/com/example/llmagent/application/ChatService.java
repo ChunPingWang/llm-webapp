@@ -36,23 +36,39 @@ public class ChatService {
     private final ChatModelPort chatModelPort;
     private final ConversationStore store;
     private final RuntimeSettingsService settings;
+    private final AgentProfileService agentProfiles;
 
     public ChatService(ChatModelPort chatModelPort,
                        ConversationStore store,
-                       RuntimeSettingsService settings) {
+                       RuntimeSettingsService settings,
+                       AgentProfileService agentProfiles) {
         this.chatModelPort = chatModelPort;
         this.store = store;
         this.settings = settings;
+        this.agentProfiles = agentProfiles;
     }
 
-    /** 建立對話。modelId / systemPrompt 為空時採預設。 */
-    public Conversation createConversation(String title, String modelId,
-                                           String systemPrompt, Double temperature) {
+    /**
+     * 建立對話。優先序:明示 systemPrompt > Agent Profile(套範本變數)> 全域預設。
+     * 指定 agentProfileId 時,模型預設亦取自該 Profile(ADR-006)。
+     */
+    public Conversation createConversation(String title, String modelId, String systemPrompt,
+                                           Double temperature, String agentProfileId,
+                                           java.util.Map<String, String> promptVariables) {
+        String prompt = systemPrompt;
+        String model = modelId;
+        if ((prompt == null || prompt.isBlank()) && agentProfileId != null && !agentProfileId.isBlank()) {
+            prompt = agentProfiles.renderPrompt(agentProfileId, promptVariables);
+            if (model == null || model.isBlank()) {
+                model = agentProfiles.findLatest(agentProfileId)
+                        .map(p -> p.defaultModelId()).orElse(null);
+            }
+        }
         Conversation c = new Conversation(
                 UUID.randomUUID().toString(),
                 title == null || title.isBlank() ? "新對話" : title,
-                systemPrompt == null || systemPrompt.isBlank() ? settings.systemPrompt() : systemPrompt,
-                modelId == null || modelId.isBlank() ? settings.defaultModelId() : modelId,
+                prompt == null || prompt.isBlank() ? settings.systemPrompt() : prompt,
+                model == null || model.isBlank() ? settings.defaultModelId() : model,
                 temperature,
                 Instant.now());
         store.save(c);

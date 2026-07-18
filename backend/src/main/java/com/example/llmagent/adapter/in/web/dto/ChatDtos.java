@@ -14,7 +14,8 @@ public final class ChatDtos {
             String agentProfileId,
             String modelId,
             Double temperature,
-            String systemPrompt) {
+            String systemPrompt,
+            java.util.Map<String, String> promptVariables) {
     }
 
     /** POST /api/conversations 回應。 */
