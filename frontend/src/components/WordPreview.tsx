@@ -11,11 +11,14 @@ import { renderDocx } from "../api";
 export function WordPreview({
   markdown,
   title,
+  fileUrl,
   variant = "panel",
   onExpand,
 }: {
   markdown: string;
   title: string;
+  /** 直接預覽既有 .docx(如上傳檔,WP6-T2);設定時優先於 markdown 轉檔。 */
+  fileUrl?: string | null;
   variant?: "panel" | "modal";
   onExpand?: () => void;
 }) {
@@ -25,13 +28,19 @@ export function WordPreview({
 
   useEffect(() => {
     let cancelled = false;
-    if (!markdown.trim()) {
+    if (!fileUrl && !markdown.trim()) {
       setStatus("idle");
       setBlob(null);
       return;
     }
     setStatus("loading");
-    renderDocx(markdown, title)
+    const source: Promise<Blob> = fileUrl
+      ? fetch(fileUrl).then((r) => {
+          if (!r.ok) throw new Error(`fetch docx failed: ${r.status}`);
+          return r.blob();
+        })
+      : renderDocx(markdown, title);
+    source
       .then(async (b) => {
         if (cancelled) return;
         setBlob(b);
@@ -54,7 +63,7 @@ export function WordPreview({
     return () => {
       cancelled = true;
     };
-  }, [markdown, title]);
+  }, [markdown, title, fileUrl]);
 
   function download() {
     if (!blob) return;

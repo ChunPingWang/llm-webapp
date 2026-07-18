@@ -5,6 +5,7 @@ import {
   fetchModels,
   postMessage,
   streamMessage,
+  uploadFile,
   type AgentProfile,
 } from "./api";
 import { AgentProfilesModal } from "./components/AgentProfilesModal";
@@ -54,6 +55,8 @@ export function App() {
   const [modal, setModal] = useState<null | "word" | "code" | "settings" | "profiles" | "providers">(null);
   const [profiles, setProfiles] = useState<AgentProfile[]>([]);
   const [profileId, setProfileId] = useState<string>(""); // "" = 全域預設 prompt
+  const [uploadedDoc, setUploadedDoc] = useState<{ url: string; name: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const convId = useRef<string | null>(null);
   const convKey = useRef<string>(""); // model+profile;變更時開新對話
   const esRef = useRef<EventSource | null>(null);
@@ -238,11 +241,41 @@ export function App() {
               />
             )}
             {tab === "word" && (
-              <WordPreview
-                markdown={lastAssistant?.streaming ? "" : (lastAssistant?.content ?? "")}
-                title={docTitle(lastAssistant?.content ?? "")}
-                onExpand={() => setModal("word")}
-              />
+              <>
+                <div className="word-toolbar">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".docx"
+                    style={{ display: "none" }}
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      try {
+                        const up = await uploadFile(f);
+                        setUploadedDoc({ url: up.previewUrl, name: up.filename });
+                      } catch {
+                        setLogs((prev) => [...prev, { level: "ERROR", source: "client", msg: "上傳失敗", ts: "" }]);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                  <button className="expand-btn" onClick={() => fileInputRef.current?.click()}>
+                    ⬆ 上傳 .docx 預覽
+                  </button>
+                  {uploadedDoc && (
+                    <button className="expand-btn" onClick={() => setUploadedDoc(null)}>
+                      ✕ {uploadedDoc.name}
+                    </button>
+                  )}
+                </div>
+                <WordPreview
+                  markdown={lastAssistant?.streaming ? "" : (lastAssistant?.content ?? "")}
+                  title={uploadedDoc?.name ?? docTitle(lastAssistant?.content ?? "")}
+                  fileUrl={uploadedDoc?.url}
+                  onExpand={() => setModal("word")}
+                />
+              </>
             )}
             {tab === "logs" && <LogPanel logs={logs} />}
           </div>
@@ -250,11 +283,12 @@ export function App() {
       </main>
 
       {modal === "word" && (
-        <Modal title="業務需求文件 · Word 預覽" onClose={() => setModal(null)}>
+        <Modal title={uploadedDoc ? `上傳文件 · ${uploadedDoc.name}` : "業務需求文件 · Word 預覽"} onClose={() => setModal(null)}>
           <WordPreview
             variant="modal"
             markdown={lastAssistant?.content ?? ""}
-            title={docTitle(lastAssistant?.content ?? "")}
+            title={uploadedDoc?.name ?? docTitle(lastAssistant?.content ?? "")}
+            fileUrl={uploadedDoc?.url}
           />
         </Modal>
       )}

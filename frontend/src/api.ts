@@ -84,6 +84,15 @@ export async function updateSettings(patch: {
   return res.json();
 }
 
+/** 上傳檔案至 MinIO(WP6-T1),回傳 fileId 與預覽 URL。 */
+export async function uploadFile(file: File): Promise<{ fileId: string; filename: string; previewUrl: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/files", { method: "POST", body: form });
+  if (!res.ok) throw new Error(`uploadFile failed: ${res.status}`);
+  return res.json();
+}
+
 /** 將 Markdown 文件轉為 Word(.docx)Blob(WP6-T3);後端 Apache POI 產生。 */
 export async function renderDocx(markdown: string, title: string): Promise<Blob> {
   const res = await fetch("/api/docx", {

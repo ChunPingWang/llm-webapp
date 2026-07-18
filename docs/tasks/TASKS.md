@@ -65,9 +65,11 @@
 - [x] **WP5-T2** Artifact Panel UI:高亮、複製、下載(.feature/.java/.md)`deps: [WP5-T1]` ✅(後端版本化已於 WP5-T1 完成)
 - [x] **WP5-T3** Artifact 版本 diff 檢視 `deps: [WP5-T2]` ✅
   - 端點 GET /api/conversations/{id}/artifacts?type=;前端 LCS 行級 diff(新增綠/刪除紅)
-- [ ] **WP6-T1** 檔案上傳 + MinIO 儲存(pre-signed URL)`deps: [WP1-T2, WP1-T3]`
-- [x] **WP6-T2** docx-preview 前端整合(ADR-004)`deps: [WP6-T1]` — Word 預覽
-  - 前端 WordPreview 面板以 docx-preview 內嵌渲染後端 .docx(標題/表格正確);Playwright 驗證通過 ✅
+- [x] **WP6-T1** 檔案上傳 + MinIO 儲存(pre-signed URL)`deps: [WP1-T2, WP1-T3]` ✅
+  - POST /api/files(multipart→MinIO,bucket 自動建立)+ /preview(presigned,600s)+ /content 代理;
+    files 表(V2 migration)+ InMemory/Jdbc metadata;live 驗證上傳/presigned 200/代理往返 docx 完整
+- [x] **WP6-T2** docx-preview 前端整合(ADR-004)`deps: [WP6-T1]` ✅
+  - 產生文件與「上傳 .docx」皆可預覽(WordPreview 支援 fileUrl);Playwright 驗證上傳→渲染(含表格)
 - [x] **WP6-T3** POI 匯出:對話產出物 → .docx(→ MinIO 於後續)`deps: [WP5-T1]` — Word 產生
   - 後端 PoiDocxRenderer(Apache POI)+ `POST /api/docx`;將需求文件 Markdown 轉 .docx(標題/表格/清單/粗體)。MinIO 儲存留待 WP6-T1 ✅
 

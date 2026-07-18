@@ -37,6 +37,9 @@ dependencies {
     // Word (.docx) 產生(WP6-T3,ADR-004):後端以 Apache POI 產生,前端 docx-preview 預覽。
     implementation("org.apache.poi:poi-ooxml:5.3.0")
 
+    // 物件儲存(WP6-T1):MinIO S3 API,pre-signed URL。
+    implementation("io.minio:minio:8.5.12")
+
     // 持久化(WP1-T3):PostgreSQL + Flyway。postgres profile 啟用;預設仍為 in-memory。
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.flywaydb:flyway-core")
