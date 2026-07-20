@@ -39,7 +39,6 @@ export function AgentProfilesModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     reload().catch(() => setStatus("error"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function save() {

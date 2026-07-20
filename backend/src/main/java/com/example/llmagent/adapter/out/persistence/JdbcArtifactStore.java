@@ -82,4 +82,12 @@ public class JdbcArtifactStore implements ArtifactStore {
                 ORDER BY a.version
                 """, MAPPER, UUID.fromString(conversationId), type.name());
     }
+
+    @Override
+    public void deleteByConversationId(String conversationId) {
+        jdbc.update("""
+                DELETE FROM artifacts WHERE message_id IN
+                    (SELECT id FROM messages WHERE conversation_id = ?)
+                """, UUID.fromString(conversationId));
+    }
 }

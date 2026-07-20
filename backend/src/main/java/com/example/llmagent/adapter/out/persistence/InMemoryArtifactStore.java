@@ -57,4 +57,12 @@ public class InMemoryArtifactStore implements ArtifactStore {
                 .sorted(Comparator.comparing(Artifact::version))
                 .toList();
     }
+
+    @Override
+    public void deleteByConversationId(String conversationId) {
+        entries.stream()
+                .filter(e -> e.conversationId().equals(conversationId))
+                .forEach(e -> byId.remove(e.artifact().id()));
+        entries.removeIf(e -> e.conversationId().equals(conversationId));
+    }
 }

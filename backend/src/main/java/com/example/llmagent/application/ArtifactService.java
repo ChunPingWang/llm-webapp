@@ -53,4 +53,8 @@ public class ArtifactService {
     public List<Artifact> versions(String conversationId, Artifact.ArtifactType type) {
         return store.findByConversationAndType(conversationId, type);
     }
+
+    public void deleteByConversation(String conversationId) {
+        store.deleteByConversationId(conversationId);
+    }
 }

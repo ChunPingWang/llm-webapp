@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createConversation,
+  deleteConversation,
   fetchAgentProfiles,
   fetchModels,
   postMessage,
@@ -8,6 +9,7 @@ import {
   uploadFile,
   type AgentProfile,
 } from "./api";
+import { useAutoScroll } from "./lib/useAutoScroll";
 import { AgentProfilesModal } from "./components/AgentProfilesModal";
 import { ProvidersModal } from "./components/ProvidersModal";
 import { MessageView } from "./components/MessageView";
@@ -88,6 +90,10 @@ export function App() {
     [messages],
   );
 
+  // 串流時自動捲至底部:對話區與側欄(產出物 / 日誌)各自跟隨(使用者上捲即暫停)
+  const messagesRef = useAutoScroll<HTMLDivElement>([messages]);
+  const tabBodyRef = useAutoScroll<HTMLDivElement>([lastAssistant?.content, logs.length, tab]);
+
   function patch(id: string, fn: (m: ChatMessage) => ChatMessage) {
     setMessages((prev) => prev.map((m) => (m.id === id ? fn(m) : m)));
   }
@@ -149,6 +155,27 @@ export function App() {
     }
   }
 
+  /** 清除對話與產出物(前端狀態 + 後端資料),重新開始。 */
+  async function clearConversation() {
+    if (!window.confirm("確定要清除對話與產出物?此動作無法復原。")) return;
+    esRef.current?.close();
+    esRef.current = null;
+    const id = convId.current;
+    convId.current = null;
+    convKey.current = "";
+    setMessages([]);
+    setLogs([]);
+    setUploadedDoc(null);
+    setSending(false);
+    if (id) {
+      try {
+        await deleteConversation(id);
+      } catch {
+        // 後端清除失敗不影響前端重新開始;下次送訊息會建立新對話
+      }
+    }
+  }
+
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -188,12 +215,20 @@ export function App() {
           >
             ⚙ 設定
           </button>
+          <button
+            className="settings-btn"
+            onClick={clearConversation}
+            disabled={messages.length === 0 && !convId.current}
+            title="清除對話與產出物,重新開始"
+          >
+            🗑 清除對話
+          </button>
         </div>
       </header>
 
       <main className="main">
         <section className="chat">
-          <div className="messages">
+          <div className="messages" ref={messagesRef}>
             {messages.length === 0 && (
               <div className="welcome">
                 <h2>開始對話</h2>
@@ -232,7 +267,7 @@ export function App() {
               日誌{logs.length > 0 ? ` (${logs.length})` : ""}
             </button>
           </div>
-          <div className="tab-body">
+          <div className="tab-body" ref={tabBodyRef}>
             {tab === "artifacts" && (
               <ArtifactPanel
                 sourceMarkdown={lastAssistant?.content ?? ""}

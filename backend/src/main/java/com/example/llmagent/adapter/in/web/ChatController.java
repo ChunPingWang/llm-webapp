@@ -3,6 +3,7 @@ package com.example.llmagent.adapter.in.web;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -56,6 +57,12 @@ public class ChatController {
         String messageId = chatService.addUserMessage(conversationId, req.content(),
                 req.modelId(), req.agentProfileId(), req.promptVariables());
         return new PostMessageResponse(messageId);
+    }
+
+    @DeleteMapping("/conversations/{conversationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteConversation(@PathVariable String conversationId) {
+        chatService.deleteConversation(conversationId);
     }
 
     @GetMapping(path = "/messages/{messageId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

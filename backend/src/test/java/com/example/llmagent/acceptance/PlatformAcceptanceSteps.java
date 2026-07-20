@@ -38,6 +38,7 @@ public class PlatformAcceptanceSteps {
     private String cannedReply;
     private ChatService chatService;
     private ArtifactService artifactService;
+    private InMemoryConversationStore conversationStore;
     private List<StreamEvent> events;
     private String conversationId;
     private byte[] docxBytes;
@@ -47,9 +48,10 @@ public class PlatformAcceptanceSteps {
         cannedReply = "";
         InMemoryArtifactStore artifactStore = new InMemoryArtifactStore();
         artifactService = new ArtifactService(artifactStore);
+        conversationStore = new InMemoryConversationStore();
         chatService = new ChatService(
                 call -> Flux.just(ChatChunk.text(cannedReply), ChatChunk.finalUsage(new Usage(10, 5))),
-                new InMemoryConversationStore(),
+                conversationStore,
                 new RuntimeSettingsService(new ChatProperties("test-model", "sys"), "http://x", "k"),
                 new AgentProfileService(new InMemoryAgentProfileStore(), null),
                 artifactService,
@@ -119,6 +121,22 @@ public class PlatformAcceptanceSteps {
                 com.example.llmagent.domain.artifact.Artifact.ArtifactType.valueOf(type));
         assertEquals(count, artifacts.size());
         assertEquals(version, artifacts.get(artifacts.size() - 1).version());
+    }
+
+    @And("使用者清除對話與產出物")
+    public void userClearsConversation() {
+        chatService.deleteConversation(conversationId);
+    }
+
+    @Then("該對話應已不存在")
+    public void conversationGone() {
+        assertTrue(conversationStore.findById(conversationId).isEmpty(), "對話應已刪除");
+    }
+
+    @And("該對話應沒有任何 {string} 產出物")
+    public void noArtifactsLeft(String type) {
+        assertEquals(0, artifactService.versions(conversationId,
+                com.example.llmagent.domain.artifact.Artifact.ArtifactType.valueOf(type)).size());
     }
 
     @When("以標題 {string} 將 Markdown {string} 轉為 Word")

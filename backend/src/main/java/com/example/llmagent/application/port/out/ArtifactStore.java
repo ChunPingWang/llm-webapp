@@ -19,4 +19,7 @@ public interface ArtifactStore {
 
     /** 該對話中指定型別的全部版本(舊→新),供 diff。 */
     List<Artifact> findByConversationAndType(String conversationId, Artifact.ArtifactType type);
+
+    /** 刪除該對話全部產出物;不存在時不動作(冪等)。 */
+    void deleteByConversationId(String conversationId);
 }

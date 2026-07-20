@@ -32,4 +32,9 @@ public class InMemoryConversationStore implements ConversationStore {
                 .filter(c -> c.findMessage(messageId).isPresent())
                 .findFirst();
     }
+
+    @Override
+    public void deleteById(String conversationId) {
+        byId.remove(conversationId);
+    }
 }

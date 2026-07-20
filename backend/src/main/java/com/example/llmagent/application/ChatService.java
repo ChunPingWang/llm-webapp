@@ -84,6 +84,16 @@ public class ChatService {
         return c;
     }
 
+    /**
+     * 清除對話與其全部訊息、產出物(重新開始)。冪等;
+     * 稽核日誌保留並落一筆刪除紀錄(audit_logs 無 FK,不受 cascade 影響)。
+     */
+    public void deleteConversation(String conversationId) {
+        artifacts.deleteByConversation(conversationId);
+        store.deleteById(conversationId);
+        auditLog.append(conversationId, "INFO", "conversation", "conversation_deleted");
+    }
+
     /** 記錄使用者訊息,回傳 messageId(供 /stream 消費)。 */
     public String addUserMessage(String conversationId, String content) {
         return addUserMessage(conversationId, content, null, null, null);

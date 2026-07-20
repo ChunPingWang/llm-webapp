@@ -109,4 +109,11 @@ public class JdbcConversationStore implements ConversationStore {
                 UUID.fromString(messageId));
         return convIds.isEmpty() ? Optional.empty() : findById(convIds.get(0));
     }
+
+    @Override
+    @Transactional
+    public void deleteById(String conversationId) {
+        // messages 與 artifacts 由 FK ON DELETE CASCADE 一併刪除(V1__init.sql)
+        jdbc.update("DELETE FROM conversations WHERE id = ?", UUID.fromString(conversationId));
+    }
 }

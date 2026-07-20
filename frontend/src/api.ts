@@ -127,6 +127,12 @@ export async function createConversation(
   return (await res.json()).conversationId;
 }
 
+/** 清除對話與產出物(重新開始)。冪等,後端不存在亦回 204。 */
+export async function deleteConversation(conversationId: string): Promise<void> {
+  const res = await fetch(`/api/conversations/${conversationId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`deleteConversation failed: ${res.status}`);
+}
+
 /** 送出使用者訊息,回傳 messageId。modelId / agentProfileId 為對話中切換(WP3-T3)。 */
 export async function postMessage(
   conversationId: string,

@@ -16,4 +16,7 @@ public interface ConversationStore {
 
     /** 依 messageId 找到其所屬對話。 */
     Optional<Conversation> findByMessageId(String messageId);
+
+    /** 刪除對話與其訊息;不存在時不動作(冪等)。 */
+    void deleteById(String conversationId);
 }
