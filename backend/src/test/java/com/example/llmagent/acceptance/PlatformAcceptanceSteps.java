@@ -1,17 +1,29 @@
 package com.example.llmagent.acceptance;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 
+import com.example.llmagent.adapter.out.docx.PoiDocumentTextExtractor;
 import com.example.llmagent.adapter.out.docx.PoiDocxRenderer;
 import com.example.llmagent.adapter.out.persistence.InMemoryAgentProfileStore;
 import com.example.llmagent.adapter.out.persistence.InMemoryArtifactStore;
 import com.example.llmagent.adapter.out.persistence.InMemoryAuditLogStore;
 import com.example.llmagent.adapter.out.persistence.InMemoryConversationStore;
+import com.example.llmagent.adapter.out.persistence.InMemoryFileMetadataStore;
 import com.example.llmagent.application.AgentProfileService;
 import com.example.llmagent.application.ArtifactService;
+import com.example.llmagent.application.AttachmentTextService;
+import com.example.llmagent.application.port.out.FileStorage;
+import com.example.llmagent.domain.chat.Role;
+import com.example.llmagent.domain.file.StoredFile;
 import com.example.llmagent.application.ChatProperties;
 import com.example.llmagent.application.ChatService;
 import com.example.llmagent.application.RuntimeSettingsService;
@@ -29,6 +41,7 @@ import io.cucumber.java.en.When;
 import reactor.core.publisher.Flux;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,6 +55,11 @@ public class PlatformAcceptanceSteps {
     private List<StreamEvent> events;
     private String conversationId;
     private byte[] docxBytes;
+    private byte[] templateBytes;
+    private String attachmentFileId;
+    private AttachmentTextService attachmentService;
+    private InMemoryFileMetadataStore fileMetadataStore;
+    private final Map<String, byte[]> blobStore = new HashMap<>();
 
     @Before
     public void setup() {
@@ -57,6 +75,27 @@ public class PlatformAcceptanceSteps {
                 artifactService,
                 new InMemoryAuditLogStore(),
                 io.micrometer.observation.ObservationRegistry.create());
+
+        blobStore.clear();
+        fileMetadataStore = new InMemoryFileMetadataStore();
+        FileStorage fakeStorage = new FileStorage() {
+            @Override
+            public void put(String key, byte[] content, String contentType) {
+                blobStore.put(key, content);
+            }
+
+            @Override
+            public byte[] get(String key) {
+                return blobStore.get(key);
+            }
+
+            @Override
+            public String presignedGetUrl(String key, int expirySeconds) {
+                return "http://test/" + key;
+            }
+        };
+        attachmentService = new AttachmentTextService(fileMetadataStore, fakeStorage,
+                new PoiDocumentTextExtractor());
     }
 
     @Given("模型將回覆 {string}")
@@ -137,6 +176,58 @@ public class PlatformAcceptanceSteps {
     public void noArtifactsLeft(String type) {
         assertEquals(0, artifactService.versions(conversationId,
                 com.example.llmagent.domain.artifact.Artifact.ArtifactType.valueOf(type)).size());
+    }
+
+    @Given("已上傳附件 {string} 內容為 {string}")
+    public void attachmentUploaded(String filename, String text) {
+        attachmentFileId = UUID.randomUUID().toString();
+        String key = "uploads/" + attachmentFileId + "/" + filename;
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        blobStore.put(key, bytes);
+        fileMetadataStore.save(new StoredFile(attachmentFileId, filename, "text/plain",
+                bytes.length, key, Instant.now()));
+    }
+
+    @When("使用者送出訊息 {string} 並附上該附件")
+    public void userSendsWithAttachment(String content) {
+        var conv = chatService.createConversation("t", null, null, null, null, null);
+        conversationId = conv.id();
+        String augmented = attachmentService.augment(content, List.of(attachmentFileId));
+        chatService.addUserMessage(conversationId, augmented);
+    }
+
+    @Then("送給模型的使用者訊息應包含 {string}")
+    public void userMessageContains(String expected) {
+        String content = conversationStore.findById(conversationId).orElseThrow()
+                .messages().stream()
+                .filter(m -> m.role() == Role.USER)
+                .findFirst().orElseThrow()
+                .content();
+        assertTrue(content.contains(expected), "使用者訊息缺少: " + expected);
+    }
+
+    @Given("一份含 {string} 與 {string} 佔位的 Word 範本")
+    public void wordTemplate(String p1, String p2) throws Exception {
+        try (XWPFDocument doc = new XWPFDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            doc.createParagraph().createRun().setText(p1);
+            doc.createParagraph().createRun().setText(p2);
+            doc.write(out);
+            templateBytes = out.toByteArray();
+        }
+    }
+
+    @When("以標題 {string} 及該範本將 Markdown {string} 套版轉為 Word")
+    public void renderDocxWithTemplate(String title, String markdown) {
+        docxBytes = new PoiDocxRenderer()
+                .renderWithTemplate(title, markdown.replace("\\n", "\n"), templateBytes);
+    }
+
+    @And("產生的 docx 不應包含文字 {string}")
+    public void docxNotContains(String text) throws Exception {
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(docxBytes))) {
+            String all = String.join("\n", doc.getParagraphs().stream().map(p -> p.getText()).toList());
+            assertFalse(all.contains(text), "docx 不應包含: " + text);
+        }
     }
 
     @When("以標題 {string} 將 Markdown {string} 轉為 Word")

@@ -58,7 +58,11 @@ export function App() {
   const [profiles, setProfiles] = useState<AgentProfile[]>([]);
   const [profileId, setProfileId] = useState<string>(""); // "" = 全域預設 prompt
   const [uploadedDoc, setUploadedDoc] = useState<{ url: string; name: string } | null>(null);
+  const [attachments, setAttachments] = useState<{ fileId: string; filename: string }[]>([]);
+  const [wordTemplate, setWordTemplate] = useState<{ fileId: string; filename: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
+  const templateInputRef = useRef<HTMLInputElement>(null);
   const convId = useRef<string | null>(null);
   const convKey = useRef<string>(""); // model+profile;變更時開新對話
   const esRef = useRef<EventSource | null>(null);
@@ -114,8 +118,12 @@ export function App() {
       const key = `${model}|${profileId}`;
       const switched = convKey.current !== key;
       convKey.current = key;
+      const attached = attachments;
+      const display = attached.length === 0
+        ? text
+        : `${text}\n\n${attached.map((a) => `📎 ${a.filename}`).join("\n")}`;
       const userMsg: ChatMessage = {
-        id: nextId(), role: "user", content: text, thinking: "", logs: [], streaming: false,
+        id: nextId(), role: "user", content: display, thinking: "", logs: [], streaming: false,
       };
       const assistantId = nextId();
       const assistant: ChatMessage = {
@@ -130,7 +138,9 @@ export function App() {
         switched ? model : undefined,
         switched && profileId ? profileId : undefined,
         switched && profileId ? vars : undefined,
+        attached.length > 0 ? attached.map((a) => a.fileId) : undefined,
       );
+      setAttachments([]);
 
       esRef.current = streamMessage(messageId, {
         onThinking: (d) => patch(assistantId, (m) => ({ ...m, thinking: m.thinking + d })),
@@ -166,6 +176,8 @@ export function App() {
     setMessages([]);
     setLogs([]);
     setUploadedDoc(null);
+    setAttachments([]);
+    setWordTemplate(null);
     setSending(false);
     if (id) {
       try {
@@ -241,11 +253,52 @@ export function App() {
             ))}
           </div>
           <div className="composer">
+            {attachments.length > 0 && (
+              <div className="attachment-chips">
+                {attachments.map((a) => (
+                  <button
+                    key={a.fileId}
+                    className="expand-btn"
+                    title="移除附件"
+                    onClick={() =>
+                      setAttachments((prev) => prev.filter((x) => x.fileId !== a.fileId))
+                    }
+                  >
+                    📎 {a.filename} ✕
+                  </button>
+                ))}
+              </div>
+            )}
+            <input
+              ref={attachInputRef}
+              type="file"
+              accept=".docx,.txt,.md,.markdown,.feature,.csv,.json,.yaml,.yml,.xml"
+              style={{ display: "none" }}
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                try {
+                  const up = await uploadFile(f);
+                  setAttachments((prev) => [...prev, { fileId: up.fileId, filename: up.filename }]);
+                } catch {
+                  setLogs((prev) => [...prev, { level: "ERROR", source: "client", msg: "附件上傳失敗", ts: "" }]);
+                }
+                e.target.value = "";
+              }}
+            />
+            <button
+              className="attach-btn"
+              title="上傳附件(內容將提供給模型參考,支援 .docx / 純文字)"
+              onClick={() => attachInputRef.current?.click()}
+              disabled={sending}
+            >
+              📎
+            </button>
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="輸入訊息…(Cmd/Ctrl + Enter 送出)"
+              placeholder="輸入訊息…(Cmd/Ctrl + Enter 送出;📎 可附加 .docx / 文字檔)"
               rows={3}
               disabled={sending}
             />
@@ -303,11 +356,45 @@ export function App() {
                       ✕ {uploadedDoc.name}
                     </button>
                   )}
+                  <input
+                    ref={templateInputRef}
+                    type="file"
+                    accept=".docx"
+                    style={{ display: "none" }}
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      try {
+                        const up = await uploadFile(f);
+                        setWordTemplate({ fileId: up.fileId, filename: up.filename });
+                      } catch {
+                        setLogs((prev) => [...prev, { level: "ERROR", source: "client", msg: "範本上傳失敗", ts: "" }]);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                  <button
+                    className="expand-btn"
+                    title="上傳 Word 範本套版(支援 {{title}} / {{content}} 佔位)"
+                    onClick={() => templateInputRef.current?.click()}
+                  >
+                    📄 上傳範本
+                  </button>
+                  {wordTemplate && (
+                    <button
+                      className="expand-btn"
+                      title="移除範本"
+                      onClick={() => setWordTemplate(null)}
+                    >
+                      ✕ 範本:{wordTemplate.filename}
+                    </button>
+                  )}
                 </div>
                 <WordPreview
                   markdown={lastAssistant?.streaming ? "" : (lastAssistant?.content ?? "")}
                   title={uploadedDoc?.name ?? docTitle(lastAssistant?.content ?? "")}
                   fileUrl={uploadedDoc?.url}
+                  templateFileId={wordTemplate?.fileId}
                   onExpand={() => setModal("word")}
                 />
               </>
@@ -324,6 +411,7 @@ export function App() {
             markdown={lastAssistant?.content ?? ""}
             title={uploadedDoc?.name ?? docTitle(lastAssistant?.content ?? "")}
             fileUrl={uploadedDoc?.url}
+            templateFileId={wordTemplate?.fileId}
           />
         </Modal>
       )}

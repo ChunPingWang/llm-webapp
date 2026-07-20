@@ -8,4 +8,12 @@ public interface DocxRenderer {
 
     /** @return .docx 檔案位元組 */
     byte[] render(String title, String markdown);
+
+    /**
+     * 以上傳的 Word 範本套版:置換 {@code {{title}}} 佔位,於 {@code {{content}}} 佔位處
+     * 插入渲染後內文(無佔位則附加於範本之後),保留範本樣式與頁首頁尾。
+     *
+     * @return .docx 檔案位元組
+     */
+    byte[] renderWithTemplate(String title, String markdown, byte[] template);
 }

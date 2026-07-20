@@ -126,6 +126,10 @@ paths:
                 promptVariables:
                   type: object
                   additionalProperties: { type: string }
+                fileIds:
+                  type: array
+                  items: { type: string }
+                  description: 對話附件(先經 /api/files 上傳)。後端抽取文字(.docx/.txt/.md/.feature)併入使用者訊息供模型參考
       responses:
         "201":
           description: Created
@@ -232,6 +236,7 @@ paths:
               properties:
                 markdown: { type: string }
                 title: { type: string }
+                templateFileId: { type: string, description: Word 範本(先經 /api/files 上傳)。以範本套版:置換 {{title}},{{content}} 佔位處插入內文;無佔位則附加於範本之後 }
       responses:
         "200": { description: .docx bytes }
 

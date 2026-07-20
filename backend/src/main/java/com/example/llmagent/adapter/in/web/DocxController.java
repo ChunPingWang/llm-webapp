@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.llmagent.application.port.out.DocxRenderer;
+import com.example.llmagent.application.port.out.FileMetadataStore;
+import com.example.llmagent.application.port.out.FileStorage;
+import com.example.llmagent.domain.file.StoredFile;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -29,18 +32,30 @@ public class DocxController {
             MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
 
     private final DocxRenderer renderer;
+    private final FileMetadataStore fileMetadata;
+    private final FileStorage fileStorage;
 
-    public DocxController(DocxRenderer renderer) {
+    public DocxController(DocxRenderer renderer, FileMetadataStore fileMetadata, FileStorage fileStorage) {
         this.renderer = renderer;
+        this.fileMetadata = fileMetadata;
+        this.fileStorage = fileStorage;
     }
 
-    public record DocxRequest(@NotBlank String markdown, String title) {
+    /** templateFileId:先經 /api/files 上傳的 Word 範本;設定時以範本套版({{title}} / {{content}} 佔位)。 */
+    public record DocxRequest(@NotBlank String markdown, String title, String templateFileId) {
     }
 
     @PostMapping
     public ResponseEntity<byte[]> generate(@Valid @RequestBody DocxRequest req) {
         String title = req.title() == null || req.title().isBlank() ? "文件" : req.title();
-        byte[] bytes = renderer.render(title, req.markdown());
+        byte[] bytes;
+        if (req.templateFileId() == null || req.templateFileId().isBlank()) {
+            bytes = renderer.render(title, req.markdown());
+        } else {
+            StoredFile tpl = fileMetadata.findById(req.templateFileId())
+                    .orElseThrow(() -> new IllegalArgumentException("template not found: " + req.templateFileId()));
+            bytes = renderer.renderWithTemplate(title, req.markdown(), fileStorage.get(tpl.storageKey()));
+        }
         String filename = URLEncoder.encode(title + ".docx", StandardCharsets.UTF_8).replace("+", "%20");
         return ResponseEntity.ok()
                 .contentType(DOCX)

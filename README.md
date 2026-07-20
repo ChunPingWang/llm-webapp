@@ -1,4 +1,4 @@
-# llm-webapp — LLM Agent Web Platform
+# gherkins-converter — LLM Agent Web Platform
 
 類 Open WebUI 的多模型 AI Agent 平台:透過 **IBM ICA(OpenAI-Compatible Gateway)** 呼叫**最新 Claude 模型**,
 以 SDLC 場景為核心 —— 對話產出 **Gherkin 規格、業務需求 Word 文件、Java + Cucumber 程式碼**,
@@ -191,7 +191,7 @@ cd frontend && npm run build      # tsc 型別檢查 + vite 打包
 ## 5. 專案結構
 
 ```
-llm-webapp/
+gherkins-converter/
 ├── CLAUDE.md               # 開發指引與架構約束(BDD-first、Hexagonal、API 契約先行)
 ├── backend/                # Spring Boot 3.3 + WebFlux + Spring AI(Hexagonal)
 ├── frontend/               # React 18 + TS + Vite(Chat / Artifacts / Word 預覽 / 日誌 / 設定)

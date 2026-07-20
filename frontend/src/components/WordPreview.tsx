@@ -12,6 +12,7 @@ export function WordPreview({
   markdown,
   title,
   fileUrl,
+  templateFileId,
   variant = "panel",
   onExpand,
 }: {
@@ -19,6 +20,8 @@ export function WordPreview({
   title: string;
   /** 直接預覽既有 .docx(如上傳檔,WP6-T2);設定時優先於 markdown 轉檔。 */
   fileUrl?: string | null;
+  /** Word 範本 fileId:markdown 轉檔時以範本套版({{title}} / {{content}} 佔位)。 */
+  templateFileId?: string | null;
   variant?: "panel" | "modal";
   onExpand?: () => void;
 }) {
@@ -39,7 +42,7 @@ export function WordPreview({
           if (!r.ok) throw new Error(`fetch docx failed: ${r.status}`);
           return r.blob();
         })
-      : renderDocx(markdown, title);
+      : renderDocx(markdown, title, templateFileId ?? undefined);
     source
       .then(async (b) => {
         if (cancelled) return;
@@ -63,7 +66,7 @@ export function WordPreview({
     return () => {
       cancelled = true;
     };
-  }, [markdown, title, fileUrl]);
+  }, [markdown, title, fileUrl, templateFileId]);
 
   function download() {
     if (!blob) return;

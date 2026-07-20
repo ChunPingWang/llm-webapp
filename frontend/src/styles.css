@@ -152,11 +152,30 @@ body {
 /* Composer */
 .composer {
   display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   gap: 0.6rem;
   padding: 0.9rem 1.25rem;
   border-top: 1px solid var(--border);
   background: var(--panel2);
 }
+.attachment-chips {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.attach-btn {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  font-size: 1rem;
+}
+.attach-btn:hover { border-color: var(--accent, #888); }
+.attach-btn:disabled { opacity: 0.5; cursor: default; }
 .composer textarea {
   flex: 1;
   resize: none;

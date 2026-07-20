@@ -93,12 +93,13 @@ export async function uploadFile(file: File): Promise<{ fileId: string; filename
   return res.json();
 }
 
-/** 將 Markdown 文件轉為 Word(.docx)Blob(WP6-T3);後端 Apache POI 產生。 */
-export async function renderDocx(markdown: string, title: string): Promise<Blob> {
+/** 將 Markdown 文件轉為 Word(.docx)Blob(WP6-T3);後端 Apache POI 產生。
+ *  templateFileId:先上傳的 Word 範本,設定時以範本套版({{title}} / {{content}} 佔位)。 */
+export async function renderDocx(markdown: string, title: string, templateFileId?: string): Promise<Blob> {
   const res = await fetch("/api/docx", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ markdown, title }),
+    body: JSON.stringify({ markdown, title, templateFileId }),
   });
   if (!res.ok) throw new Error(`renderDocx failed: ${res.status}`);
   return res.blob();
@@ -133,18 +134,19 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   if (!res.ok) throw new Error(`deleteConversation failed: ${res.status}`);
 }
 
-/** 送出使用者訊息,回傳 messageId。modelId / agentProfileId 為對話中切換(WP3-T3)。 */
+/** 送出使用者訊息,回傳 messageId。modelId / agentProfileId 為對話中切換(WP3-T3);fileIds 為對話附件。 */
 export async function postMessage(
   conversationId: string,
   content: string,
   modelId?: string,
   agentProfileId?: string,
   promptVariables?: Record<string, string>,
+  fileIds?: string[],
 ): Promise<string> {
   const res = await fetch(`/api/conversations/${conversationId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, modelId, agentProfileId, promptVariables }),
+    body: JSON.stringify({ content, modelId, agentProfileId, promptVariables, fileIds }),
   });
   if (!res.ok) throw new Error(`postMessage failed: ${res.status}`);
   return (await res.json()).messageId;

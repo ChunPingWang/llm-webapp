@@ -25,12 +25,13 @@ public final class ChatDtos {
             String title) {
     }
 
-    /** POST /api/conversations/{id}/messages 請求。modelId / agentProfileId 為對話中切換(WP3-T3)。 */
+    /** POST /api/conversations/{id}/messages 請求。modelId / agentProfileId 為對話中切換(WP3-T3);fileIds 為對話附件。 */
     public record PostMessageRequest(
             @NotBlank String content,
             String modelId,
             String agentProfileId,
-            java.util.Map<String, String> promptVariables) {
+            java.util.Map<String, String> promptVariables,
+            java.util.List<String> fileIds) {
     }
 
     /** POST /api/conversations/{id}/messages 回應。 */

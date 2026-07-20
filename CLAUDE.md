@@ -42,7 +42,7 @@
 ## Monorepo 結構
 
 ```
-llm-webapp/
+gherkins-converter/
 ├── CLAUDE.md
 ├── backend/          # Spring Boot(Gradle Kotlin DSL)
 ├── frontend/         # React + Vite

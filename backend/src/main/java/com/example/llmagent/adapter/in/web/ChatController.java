@@ -16,6 +16,7 @@ import com.example.llmagent.adapter.in.web.dto.ChatDtos.CreateConversationReques
 import com.example.llmagent.adapter.in.web.dto.ChatDtos.CreateConversationResponse;
 import com.example.llmagent.adapter.in.web.dto.ChatDtos.PostMessageRequest;
 import com.example.llmagent.adapter.in.web.dto.ChatDtos.PostMessageResponse;
+import com.example.llmagent.application.AttachmentTextService;
 import com.example.llmagent.application.ChatService;
 import com.example.llmagent.application.event.StreamEvent;
 import com.example.llmagent.domain.chat.Conversation;
@@ -34,10 +35,13 @@ import reactor.core.publisher.Flux;
 public class ChatController {
 
     private final ChatService chatService;
+    private final AttachmentTextService attachments;
     private final ObjectMapper objectMapper;
 
-    public ChatController(ChatService chatService, ObjectMapper objectMapper) {
+    public ChatController(ChatService chatService, AttachmentTextService attachments,
+                          ObjectMapper objectMapper) {
         this.chatService = chatService;
+        this.attachments = attachments;
         this.objectMapper = objectMapper;
     }
 
@@ -54,7 +58,8 @@ public class ChatController {
     @ResponseStatus(HttpStatus.CREATED)
     public PostMessageResponse postMessage(@PathVariable String conversationId,
                                            @Valid @RequestBody PostMessageRequest req) {
-        String messageId = chatService.addUserMessage(conversationId, req.content(),
+        String content = attachments.augment(req.content(), req.fileIds());
+        String messageId = chatService.addUserMessage(conversationId, content,
                 req.modelId(), req.agentProfileId(), req.promptVariables());
         return new PostMessageResponse(messageId);
     }
