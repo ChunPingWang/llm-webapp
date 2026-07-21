@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { renderAsync } from "docx-preview";
-import { renderDocx } from "../api";
+import { fillBrdDocx, renderDocx } from "../api";
+import type { BrdFillData } from "../lib/brdFill";
 
 /**
  * Word 預覽面板(WP6-T2,ADR-004)。將助理產出的需求文件 Markdown 送後端轉為 .docx,
@@ -13,6 +14,7 @@ export function WordPreview({
   title,
   fileUrl,
   templateFileId,
+  brdFill,
   variant = "panel",
   onExpand,
 }: {
@@ -22,6 +24,8 @@ export function WordPreview({
   fileUrl?: string | null;
   /** Word 範本 fileId:markdown 轉檔時以範本套版({{title}} / {{content}} 佔位)。 */
   templateFileId?: string | null;
+  /** BRD 套版資料(助理輸出的 brdFill JSON):優先於 markdown 轉檔,於原模板上填寫。 */
+  brdFill?: BrdFillData | null;
   variant?: "panel" | "modal";
   onExpand?: () => void;
 }) {
@@ -31,7 +35,7 @@ export function WordPreview({
 
   useEffect(() => {
     let cancelled = false;
-    if (!fileUrl && !markdown.trim()) {
+    if (!fileUrl && !brdFill && !markdown.trim()) {
       setStatus("idle");
       setBlob(null);
       return;
@@ -42,7 +46,9 @@ export function WordPreview({
           if (!r.ok) throw new Error(`fetch docx failed: ${r.status}`);
           return r.blob();
         })
-      : renderDocx(markdown, title, templateFileId ?? undefined);
+      : brdFill
+        ? fillBrdDocx(brdFill.values ?? {}, brdFill.scenarios, templateFileId ?? undefined)
+        : renderDocx(markdown, title, templateFileId ?? undefined);
     source
       .then(async (b) => {
         if (cancelled) return;
@@ -66,7 +72,8 @@ export function WordPreview({
     return () => {
       cancelled = true;
     };
-  }, [markdown, title, fileUrl, templateFileId]);
+    // eslint 無 react-hooks plugin;brdFill 以 JSON 序列化參與比較避免每次 re-render 觸發
+  }, [markdown, title, fileUrl, templateFileId, JSON.stringify(brdFill ?? null)]);
 
   function download() {
     if (!blob) return;

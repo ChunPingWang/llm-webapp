@@ -25,11 +25,23 @@
     當 系統種子化內建 Agent Profile
     那麼 應存在名為 "BRD 業務文件 Agent" 的 Agent Profile
     而且 該 Profile 的 system prompt 應包含 "資深業務分析師"
-    而且 該 Profile 的 system prompt 應包含 "{{PROJECT_NAME}}"
+    而且 該 Profile 的 system prompt 應包含 "brdFill"
 
   場景: BRD 模板大寫佔位符不視為 prompt 範本變數
     當 以變數 project_name 為 "ATM" 渲染範本 "專案 {project_name} 依 {{PROJECT_NAME}} 填寫"
     那麼 渲染結果應為 "專案 ATM 依 {{PROJECT_NAME}} 填寫"
+
+  場景: BRD 模板套版填寫後無殘留標記且展開正確
+    當 以 2 個需求場景的測試資料填寫內建 BRD 模板
+    那麼 套版文件全文應包含 "ATM 提款服務"
+    而且 套版文件全文應包含 "SC-01"
+    而且 套版文件全文應包含 "SC-02"
+    而且 套版文件全文應包含 "BR-02"
+    而且 套版文件全文應包含 "3. 系統驗證密碼"
+    而且 套版文件全文不應包含 "{{"
+    而且 套版文件全文不應包含 "【填寫指引】"
+    而且 套版文件全文不應包含 "模板使用說明"
+    而且 套版文件全文不應包含 "◤"
 
   場景: 對話附件內容併入使用者訊息
     假設 已上傳附件 "需求.txt" 內容為 "使用者可於 ATM 提款"

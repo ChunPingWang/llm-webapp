@@ -105,6 +105,21 @@ export async function renderDocx(markdown: string, title: string, templateFileId
   return res.blob();
 }
 
+/** BRD 模板套版:以 LLM 產出的套版資料於原 Word 模板上填寫(樣式完全保留)。 */
+export async function fillBrdDocx(
+  values: Record<string, string>,
+  scenarios?: Record<string, string>[],
+  templateFileId?: string,
+): Promise<Blob> {
+  const res = await fetch("/api/docx/fill", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ values, scenarios, templateFileId }),
+  });
+  if (!res.ok) throw new Error(`fillBrdDocx failed: ${res.status}`);
+  return res.blob();
+}
+
 /** 動態拉取 Provider 模型清單(WP2-T2)。後端已將 Claude 置前。 */
 export async function fetchModels(providerId = "ica"): Promise<ModelOption[]> {
   const res = await fetch(`/api/providers/${providerId}/models`);

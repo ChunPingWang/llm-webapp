@@ -10,6 +10,7 @@ import {
   type AgentProfile,
 } from "./api";
 import { useAutoScroll } from "./lib/useAutoScroll";
+import { extractBrdFill } from "./lib/brdFill";
 import { AgentProfilesModal } from "./components/AgentProfilesModal";
 import { ProvidersModal } from "./components/ProvidersModal";
 import { MessageView } from "./components/MessageView";
@@ -97,6 +98,15 @@ export function App() {
   // 串流時自動捲至底部:對話區與側欄(產出物 / 日誌)各自跟隨(使用者上捲即暫停)
   const messagesRef = useAutoScroll<HTMLDivElement>([messages]);
   const tabBodyRef = useAutoScroll<HTMLDivElement>([lastAssistant?.content, logs.length, tab]);
+
+  // BRD 套版資料(WP:BRD 套版):助理輸出 brdFill JSON 時,Word 預覽改走原模板填寫
+  const brdFill = useMemo(
+    () => (lastAssistant && !lastAssistant.streaming ? extractBrdFill(lastAssistant.content) : null),
+    [lastAssistant],
+  );
+  const wordTitle =
+    brdFill?.values?.DOC_TITLE ?? brdFill?.values?.PROJECT_NAME ??
+    (uploadedDoc?.name ?? docTitle(lastAssistant?.content ?? ""));
 
   function patch(id: string, fn: (m: ChatMessage) => ChatMessage) {
     setMessages((prev) => prev.map((m) => (m.id === id ? fn(m) : m)));
@@ -392,9 +402,10 @@ export function App() {
                 </div>
                 <WordPreview
                   markdown={lastAssistant?.streaming ? "" : (lastAssistant?.content ?? "")}
-                  title={uploadedDoc?.name ?? docTitle(lastAssistant?.content ?? "")}
+                  title={wordTitle}
                   fileUrl={uploadedDoc?.url}
                   templateFileId={wordTemplate?.fileId}
+                  brdFill={brdFill}
                   onExpand={() => setModal("word")}
                 />
               </>
@@ -409,9 +420,10 @@ export function App() {
           <WordPreview
             variant="modal"
             markdown={lastAssistant?.content ?? ""}
-            title={uploadedDoc?.name ?? docTitle(lastAssistant?.content ?? "")}
+            title={wordTitle}
             fileUrl={uploadedDoc?.url}
             templateFileId={wordTemplate?.fileId}
+            brdFill={brdFill}
           />
         </Modal>
       )}

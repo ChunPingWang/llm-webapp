@@ -10,12 +10,10 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.example.llmagent.application.port.out.DocumentTextExtractor;
-
 /**
  * 內建 Agent Profile(規劃書 §4.5):BDD 規格 / Java 產碼 / Code Review(儲存為空時種子化),
- * 以及步驟二「BRD 業務文件 Agent」(以名稱冪等種子化:System Prompt = BRD 填寫 Prompt +
- * BRD Word 模板全文,資源見 {@code resources/seed/})。
+ * 以及步驟二「BRD 業務文件 Agent」(以名稱冪等種子化;prompt 內容變更時自動 append 新版本。
+ * System Prompt 指示模型輸出 BRD 套版 JSON,由 /api/docx/fill 於原模板上填寫,樣式保留)。
  */
 @Configuration
 public class AgentProfileSeeder {
@@ -28,12 +26,12 @@ public class AgentProfileSeeder {
             多個步驟請分次進行,勿在前一步驟就預先產生後續步驟的產物。回答精確、聚焦。""";
 
     @Bean
-    public ApplicationRunner seedAgentProfiles(AgentProfileService service, DocumentTextExtractor extractor) {
+    public ApplicationRunner seedAgentProfiles(AgentProfileService service) {
         return args -> {
             if (service.listLatest().isEmpty()) {
                 seedBaseProfiles(service);
             }
-            seedBrdProfile(service, extractor);
+            seedBrdProfile(service);
         };
     }
 
@@ -64,21 +62,19 @@ public class AgentProfileSeeder {
                 "claude-opus-4-8", 1.0, List.of());
     }
 
-    /** 步驟二 BRD Profile:BRD 填寫 Prompt + 模板全文(模板 {{大寫}} 佔位由 LLM 填寫,非範本變數)。 */
-    void seedBrdProfile(AgentProfileService service, DocumentTextExtractor extractor) {
-        boolean exists = service.listLatest().stream()
-                .anyMatch(p -> BRD_PROFILE_NAME.equals(p.name()));
-        if (exists) {
-            return;
+    /** 步驟二 BRD Profile:輸出套版 JSON(/api/docx/fill 據以於原模板填寫);prompt 變更時 append 新版本。 */
+    void seedBrdProfile(AgentProfileService service) {
+        String systemPrompt = readResource("/seed/brd-fill-prompt.md");
+        var existing = service.listLatest().stream()
+                .filter(p -> BRD_PROFILE_NAME.equals(p.name()))
+                .findFirst();
+        if (existing.isEmpty()) {
+            service.create(BRD_PROFILE_NAME,
+                    "步驟二:依 Gherkin 產出 BRD 套版資料(JSON),系統於原 Word 模板填寫,樣式完全保留",
+                    systemPrompt, "claude-opus-4-8", 1.0, List.of());
+        } else if (!systemPrompt.equals(existing.get().systemPrompt())) {
+            service.update(existing.get().id(), null, null, systemPrompt, null, null, null);
         }
-        String prompt = readResource("/seed/brd-prompt.md");
-        String templateText = extractor.extractText("brd-template.docx", readResourceBytes("/seed/brd-template.docx"));
-        String systemPrompt = prompt
-                + "\n\n---\n\n## BRD 模板全文(依此結構與規約填寫;以 Markdown 輸出完整內容)\n\n"
-                + templateText;
-        service.create(BRD_PROFILE_NAME,
-                "步驟二:依 Gherkin 填寫 BRD 模板,產出業務需求文件(Markdown → Word 預覽)",
-                systemPrompt, "claude-opus-4-8", 1.0, List.of());
     }
 
     private String readResource(String path) {

@@ -240,6 +240,30 @@ paths:
       responses:
         "200": { description: .docx bytes }
 
+  /api/docx/fill:
+    post:
+      summary: BRD 模板套版填寫(WP:BRD 套版)。於原模板 docx 上置換佔位符、展開索引列與重複區塊、刪除填寫指引與模板使用說明章,樣式完全保留
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [values]
+              properties:
+                values:
+                  type: object
+                  additionalProperties: { type: string }
+                  description: 佔位符值(鍵不含大括號;索引族以 _1/_2/… 具體鍵提供,引擎自動展開 _N 列)
+                scenarios:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: { type: string }
+                  description: 「需求場景」重複區塊,每元素一個場景(SC_ID/SC_NAME/…;SC_STEP_1..n 等索引鍵)
+                templateFileId: { type: string, description: 自訂模板(先經 /api/files 上傳);未給則用內建 BRD 模板 }
+      responses:
+        "200": { description: .docx bytes(原模板樣式) }
+
   /api/conversations/{conversationId}/artifacts:
     get:
       summary: 該對話中某型別產出物全部版本(舊→新,供 diff,WP5-T3)

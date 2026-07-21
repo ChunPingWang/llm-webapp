@@ -4,15 +4,18 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 
 import com.example.llmagent.adapter.out.docx.PoiDocumentTextExtractor;
 import com.example.llmagent.adapter.out.docx.PoiDocxRenderer;
+import com.example.llmagent.adapter.out.docx.XmlDocxTemplateFiller;
 import com.example.llmagent.adapter.out.persistence.InMemoryAgentProfileStore;
 import com.example.llmagent.adapter.out.persistence.InMemoryArtifactStore;
 import com.example.llmagent.adapter.out.persistence.InMemoryAuditLogStore;
@@ -59,6 +62,7 @@ public class PlatformAcceptanceSteps {
     private String conversationId;
     private byte[] docxBytes;
     private byte[] templateBytes;
+    private byte[] filledDocx;
     private String attachmentFileId;
     private AttachmentTextService attachmentService;
     private InMemoryFileMetadataStore fileMetadataStore;
@@ -185,7 +189,7 @@ public class PlatformAcceptanceSteps {
     @When("系統種子化內建 Agent Profile")
     public void seedBuiltInProfiles() throws Exception {
         new com.example.llmagent.application.AgentProfileSeeder()
-                .seedAgentProfiles(profileService, new PoiDocumentTextExtractor())
+                .seedAgentProfiles(profileService)
                 .run(null);
     }
 
@@ -212,6 +216,95 @@ public class PlatformAcceptanceSteps {
     @Then("渲染結果應為 {string}")
     public void renderedPromptEquals(String expected) {
         assertEquals(expected, renderedPrompt);
+    }
+
+    @When("以 {int} 個需求場景的測試資料填寫內建 BRD 模板")
+    public void fillBrdTemplate(int scenarioCount) throws Exception {
+        byte[] template;
+        try (var in = getClass().getResourceAsStream("/seed/brd-template.docx")) {
+            template = in.readAllBytes();
+        }
+        Map<String, String> values = new HashMap<>();
+        values.put("PROJECT_NAME", "ATM 提款服務");
+        values.put("DOC_TITLE", "ATM 提款服務業務需求文件");
+        values.put("DOC_VERSION", "v1.0");
+        values.put("DOC_DATE", "2026-07-22");
+        values.put("DOC_STATUS", "草稿");
+        values.put("REQUIREMENT_SOURCE", "atm_withdrawal.feature");
+        values.put("TARGET_SYSTEMS", "ATM 前端應用系統");
+        values.put("PURPOSE", "描述 ATM 提款業務需求。");
+        values.put("SCOPE_ITEM_1", "提款卡插入與退出");
+        values.put("SCOPE_ITEM_2", "密碼驗證");
+        values.put("SCOPE_ITEM_3", "提款金額輸入與出鈔");
+        values.put("OUT_OF_SCOPE", "轉帳、存款");
+        values.put("AUDIENCE_ROLE_1", "業務單位");
+        values.put("AUDIENCE_PURPOSE_1", "需求驗收依據");
+        values.put("TERM_1", "沖正(Reversal)");
+        values.put("TERM_1_DEFINITION", "交易失敗時回復帳務之機制");
+        values.put("TERM_2", "單日限額");
+        values.put("TERM_2_DEFINITION", "單一營業日累計提款上限");
+        values.put("ACTOR_1", "持卡人");
+        values.put("ACTOR_1_RESPONSIBILITY", "發起提款交易");
+        values.put("RULE_1_NAME", "密碼驗證");
+        values.put("RULE_1_CONTENT", "連續三次錯誤即吞卡");
+        values.put("RULE_2_NAME", "餘額檢核");
+        values.put("RULE_2_CONTENT", "餘額不足須拒絕交易且不得扣款");
+        values.put("SCENARIO_COMMON_BACKGROUND", "共同背景:卡片有效且系統連線正常。");
+        values.put("SCENARIO_GROUP_1_TITLE", "正向情境(Happy Path)");
+        values.put("TRACE_SC_ID_1", "SC-01");
+        values.put("TRACE_SC_NAME_1", "成功提款");
+        values.put("TRACE_BR_LIST_1", "BR-01, BR-02");
+        values.put("TRACE_TYPE_1", "正向");
+        values.put("TRACE_SC_ID_2", "SC-02");
+        values.put("TRACE_SC_NAME_2", "餘額不足遭拒");
+        values.put("TRACE_BR_LIST_2", "BR-02");
+        values.put("TRACE_TYPE_2", "反向");
+        values.put("NFR_CATEGORY_1", "安全性");
+        values.put("NFR_CONTENT_1", "PIN 全程加密傳輸");
+        values.put("APPENDIX_SOURCE_DESCRIPTION", "來源:atm_withdrawal.feature(# language: zh-TW)");
+        values.put("APPENDIX_SC_ID_1", "SC-01");
+        values.put("APPENDIX_GHERKIN_NAME_1", "成功提款");
+        values.put("APPENDIX_SC_ID_2", "SC-02");
+        values.put("APPENDIX_GHERKIN_NAME_2", "餘額不足遭拒");
+        // 刻意不提供 OUTLINE_* / BV_*:場景大綱節應被整段清除
+
+        List<Map<String, String>> scenarios = new ArrayList<>();
+        for (int s = 1; s <= scenarioCount; s++) {
+            Map<String, String> sc = new HashMap<>();
+            sc.put("SC_ID", "SC-0" + s);
+            sc.put("SC_NAME", s == 1 ? "成功提款" : "餘額不足遭拒");
+            sc.put("SC_TYPE", s == 1 ? "正向" : "反向");
+            sc.put("SC_GHERKIN_NAME", "場景 " + s);
+            sc.put("SC_DESCRIPTION_P1", "概述交易流程。");
+            sc.put("SC_DESCRIPTION_P2", "闡述控管目的。");
+            sc.put("SC_PRECONDITION_1", "卡片有效");
+            sc.put("SC_PRECONDITION_2", "帳戶狀態正常");
+            sc.put("SC_TRIGGER", "持卡人插入提款卡");
+            sc.put("SC_STEP_1", "插入卡片");
+            sc.put("SC_STEP_2", "輸入密碼");
+            sc.put("SC_STEP_3", "系統驗證密碼");
+            sc.put("SC_EXPECTED_1", "畫面顯示交易結果");
+            sc.put("SC_EXCEPTION_NOTES", "無");
+            scenarios.add(sc);
+        }
+        filledDocx = new XmlDocxTemplateFiller().fill(template, values, Map.of("需求場景", scenarios));
+    }
+
+    @Then("套版文件全文應包含 {string}")
+    public void filledContains(String expected) throws Exception {
+        assertTrue(filledFullText().contains(expected), "套版文件缺少: " + expected);
+    }
+
+    @And("套版文件全文不應包含 {string}")
+    public void filledNotContains(String text) throws Exception {
+        assertFalse(filledFullText().contains(text), "套版文件不應包含: " + text);
+    }
+
+    private String filledFullText() throws Exception {
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(filledDocx));
+             XWPFWordExtractor extractor = new XWPFWordExtractor(doc)) {
+            return extractor.getText();
+        }
     }
 
     @Given("已上傳附件 {string} 內容為 {string}")
