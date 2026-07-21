@@ -8,11 +8,12 @@ import java.util.regex.Pattern;
 
 /**
  * System prompt 範本變數套用(WP2-T4)。支援 {@code {project_name}}、{@code {gherkin_locale}} 等
- * {@code {snake_or_camel}} 形式變數;缺少變數時擲出明確錯誤(列出全部缺漏)。
+ * 「小寫開頭」snake_case 形式變數;缺少變數時擲出明確錯誤(列出全部缺漏)。
+ * 大寫佔位符(如 BRD 模板之 {@code {{PROJECT_NAME}}})不視為變數,原樣保留供 LLM 填寫。
  */
 public final class PromptTemplate {
 
-    private static final Pattern VAR = Pattern.compile("\\{([a-zA-Z][a-zA-Z0-9_]*)}");
+    private static final Pattern VAR = Pattern.compile("\\{([a-z][a-zA-Z0-9_]*)}");
 
     private PromptTemplate() {
     }

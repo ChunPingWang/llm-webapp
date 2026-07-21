@@ -21,6 +21,16 @@
     那麼 該對話應已不存在
     而且 該對話應沒有任何 "GHERKIN" 產出物
 
+  場景: 內建 BRD 業務文件 Agent(步驟二:Gherkin 轉業務文件)
+    當 系統種子化內建 Agent Profile
+    那麼 應存在名為 "BRD 業務文件 Agent" 的 Agent Profile
+    而且 該 Profile 的 system prompt 應包含 "資深業務分析師"
+    而且 該 Profile 的 system prompt 應包含 "{{PROJECT_NAME}}"
+
+  場景: BRD 模板大寫佔位符不視為 prompt 範本變數
+    當 以變數 project_name 為 "ATM" 渲染範本 "專案 {project_name} 依 {{PROJECT_NAME}} 填寫"
+    那麼 渲染結果應為 "專案 ATM 依 {{PROJECT_NAME}} 填寫"
+
   場景: 對話附件內容併入使用者訊息
     假設 已上傳附件 "需求.txt" 內容為 "使用者可於 ATM 提款"
     當 使用者送出訊息 "請轉成 Gherkin" 並附上該附件

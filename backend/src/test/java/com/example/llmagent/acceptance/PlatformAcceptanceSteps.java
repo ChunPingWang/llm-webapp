@@ -51,6 +51,9 @@ public class PlatformAcceptanceSteps {
     private String cannedReply;
     private ChatService chatService;
     private ArtifactService artifactService;
+    private AgentProfileService profileService;
+    private com.example.llmagent.domain.agent.AgentProfile seededProfile;
+    private String renderedPrompt;
     private InMemoryConversationStore conversationStore;
     private List<StreamEvent> events;
     private String conversationId;
@@ -67,11 +70,12 @@ public class PlatformAcceptanceSteps {
         InMemoryArtifactStore artifactStore = new InMemoryArtifactStore();
         artifactService = new ArtifactService(artifactStore);
         conversationStore = new InMemoryConversationStore();
+        profileService = new AgentProfileService(new InMemoryAgentProfileStore(), null);
         chatService = new ChatService(
                 call -> Flux.just(ChatChunk.text(cannedReply), ChatChunk.finalUsage(new Usage(10, 5))),
                 conversationStore,
                 new RuntimeSettingsService(new ChatProperties("test-model", "sys"), "http://x", "k"),
-                new AgentProfileService(new InMemoryAgentProfileStore(), null),
+                profileService,
                 artifactService,
                 new InMemoryAuditLogStore(),
                 io.micrometer.observation.ObservationRegistry.create());
@@ -176,6 +180,38 @@ public class PlatformAcceptanceSteps {
     public void noArtifactsLeft(String type) {
         assertEquals(0, artifactService.versions(conversationId,
                 com.example.llmagent.domain.artifact.Artifact.ArtifactType.valueOf(type)).size());
+    }
+
+    @When("系統種子化內建 Agent Profile")
+    public void seedBuiltInProfiles() throws Exception {
+        new com.example.llmagent.application.AgentProfileSeeder()
+                .seedAgentProfiles(profileService, new PoiDocumentTextExtractor())
+                .run(null);
+    }
+
+    @Then("應存在名為 {string} 的 Agent Profile")
+    public void profileExists(String name) {
+        seededProfile = profileService.listLatest().stream()
+                .filter(p -> p.name().equals(name))
+                .findFirst().orElse(null);
+        assertNotNull(seededProfile, "缺少內建 Profile: " + name);
+    }
+
+    @And("該 Profile 的 system prompt 應包含 {string}")
+    public void profilePromptContains(String expected) {
+        assertTrue(seededProfile.systemPrompt().contains(expected),
+                "system prompt 缺少: " + expected);
+    }
+
+    @When("以變數 project_name 為 {string} 渲染範本 {string}")
+    public void renderPromptTemplate(String value, String template) {
+        renderedPrompt = com.example.llmagent.domain.agent.PromptTemplate
+                .render(template, Map.of("project_name", value));
+    }
+
+    @Then("渲染結果應為 {string}")
+    public void renderedPromptEquals(String expected) {
+        assertEquals(expected, renderedPrompt);
     }
 
     @Given("已上傳附件 {string} 內容為 {string}")
