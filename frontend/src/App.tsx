@@ -146,7 +146,7 @@ export function App() {
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null);
   const agentSuggestion = useMemo(() => {
     const s = suggestAgent(input, attachments.map((a) => a.filename), profiles, profileId);
-    return s && s.id !== dismissedSuggestion ? s : null;
+    return s && s.profile.id !== dismissedSuggestion ? s : null;
   }, [input, attachments, profiles, profileId, dismissedSuggestion]);
   const wordTitle =
     brdFill?.values?.DOC_TITLE ?? brdFill?.values?.PROJECT_NAME ??
@@ -236,6 +236,7 @@ export function App() {
     setUploadedDoc(null);
     setAttachments([]);
     setWordTemplate(null);
+    setProfileId(""); // 重新開始 = 乾淨狀態:Agent 重置回全域預設,避免殘留上次人格
     setSending(false);
     if (id) {
       try {
@@ -313,16 +314,16 @@ export function App() {
           <div className="composer">
             {agentSuggestion && !sending && (
               <div className="agent-suggest">
-                💡 這則訊息看起來適合「{agentSuggestion.name}」
+                💡 這看起來是{agentSuggestion.reason},適合改用「{agentSuggestion.profile.name}」
                 <button
                   className="expand-btn"
-                  onClick={() => setProfileId(agentSuggestion.id)}
+                  onClick={() => setProfileId(agentSuggestion.profile.id)}
                 >
                   改用
                 </button>
                 <button
                   className="expand-btn"
-                  onClick={() => setDismissedSuggestion(agentSuggestion.id)}
+                  onClick={() => setDismissedSuggestion(agentSuggestion.profile.id)}
                 >
                   忽略
                 </button>
