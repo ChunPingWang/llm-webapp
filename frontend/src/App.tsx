@@ -11,7 +11,7 @@ import {
 } from "./api";
 import { useAutoScroll } from "./lib/useAutoScroll";
 import { extractBrdFill } from "./lib/brdFill";
-import { suggestAgent } from "./lib/agentSuggest";
+import { suggestAgent, type AgentSuggestion } from "./lib/agentSuggest";
 import { AgentProfilesModal } from "./components/AgentProfilesModal";
 import { ProvidersModal } from "./components/ProvidersModal";
 import { MessageView } from "./components/MessageView";
@@ -144,6 +144,24 @@ export function App() {
 
   // Agent 建議(AI 建議 + 使用者確認):偵測輸入意圖,建議條按「改用」才切換
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null);
+  // 送出時攔截確認:訊息意圖與目前 Agent 不符時,送出前必須二選一
+  const [pendingConfirm, setPendingConfirm] = useState<
+    { text: string; suggestion: AgentSuggestion } | null
+  >(null);
+
+  /** 攔截確認後實際送出:useSuggested 決定用建議 Agent 或維持目前 Agent。 */
+  function confirmSend(useSuggested: boolean) {
+    const pc = pendingConfirm;
+    if (!pc) return;
+    setPendingConfirm(null);
+    setInput("");
+    if (useSuggested) {
+      send(pc.text, pc.suggestion.profile.id);
+    } else {
+      setDismissedSuggestion(pc.suggestion.profile.id); // 明確拒絕過,本輪不再攔
+      send(pc.text, undefined, true);
+    }
+  }
   const agentSuggestion = useMemo(() => {
     const s = suggestAgent(input, attachments.map((a) => a.filename), profiles, profileId);
     return s && s.profile.id !== dismissedSuggestion ? s : null;
@@ -156,10 +174,21 @@ export function App() {
     setMessages((prev) => prev.map((m) => (m.id === id ? fn(m) : m)));
   }
 
-  /** 送出訊息。textArg / profileOverride 供一鍵流程(如「產生 BRD」)指定內容與 Agent。 */
-  async function send(textArg?: string, profileOverride?: string) {
+  /**
+   * 送出訊息。textArg / profileOverride 供一鍵流程(如「產生 BRD」)指定內容與 Agent;
+   * skipIntercept 供攔截確認後的實際送出。
+   */
+  async function send(textArg?: string, profileOverride?: string, skipIntercept = false) {
     const text = (textArg ?? input).trim();
     if (!text || sending) return;
+    // 送出時攔截:訊息意圖與目前 Agent 不符 → 跳確認視窗,明確二選一後才送
+    if (profileOverride === undefined && !skipIntercept) {
+      const s = suggestAgent(text, attachments.map((a) => a.filename), profiles, profileId);
+      if (s && s.profile.id !== dismissedSuggestion) {
+        setPendingConfirm({ text, suggestion: s });
+        return;
+      }
+    }
     setSending(true);
     if (textArg === undefined) setInput("");
     const effProfile = profileOverride ?? profileId;
@@ -504,6 +533,25 @@ export function App() {
       {modal === "code" && (
         <Modal title={artifactModalTitle(lastAssistant?.content ?? "")} onClose={() => setModal(null)}>
           <Markdown>{lastAssistant?.content ?? ""}</Markdown>
+        </Modal>
+      )}
+      {pendingConfirm && (
+        <Modal title="確認要用的 Agent" onClose={() => setPendingConfirm(null)}>
+          <div className="confirm-agent">
+            <p>
+              這則訊息看起來是<strong>{pendingConfirm.suggestion.reason}</strong>,
+              但目前選的 Agent 是「
+              {profiles.find((p) => p.id === profileId)?.name ?? "(全域預設)"}」。
+            </p>
+            <div className="confirm-agent-actions">
+              <button onClick={() => confirmSend(true)}>
+                改用「{pendingConfirm.suggestion.profile.name}」送出
+              </button>
+              <button className="settings-btn" onClick={() => confirmSend(false)}>
+                仍用目前 Agent 送出
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
       {modal === "settings" && <SettingsModal onClose={() => setModal(null)} />}

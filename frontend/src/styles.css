@@ -175,6 +175,9 @@ body {
   font-size: 0.85rem;
   color: var(--muted);
 }
+.confirm-agent { padding: 0.5rem 0.25rem; line-height: 1.7; }
+.confirm-agent-actions { display: flex; gap: 0.6rem; margin-top: 1rem; }
+.confirm-agent-actions button { cursor: pointer; }
 .attach-btn {
   background: var(--panel);
   color: var(--text);
