@@ -77,6 +77,8 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* grid 欄寬固定:不讓超長 code block 等內容把欄位撐寬、擠掉右側欄 */
+  min-width: 0;
   border-right: 1px solid var(--border);
 }
 
@@ -208,7 +210,7 @@ button {
 button:disabled { opacity: 0.55; cursor: default; }
 
 /* Sidebar */
-.sidebar { display: flex; flex-direction: column; min-height: 0; background: var(--panel2); }
+.sidebar { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel2); }
 .tabs { display: flex; border-bottom: 1px solid var(--border); }
 .tabs button {
   flex: 1;
@@ -304,7 +306,7 @@ button:disabled { opacity: 0.55; cursor: default; }
 .log-msg { word-break: break-word; }
 
 /* Markdown */
-.markdown { line-height: 1.6; }
+.markdown { line-height: 1.6; overflow-wrap: break-word; }
 .markdown :first-child { margin-top: 0; }
 .markdown :last-child { margin-bottom: 0; }
 .markdown pre {
