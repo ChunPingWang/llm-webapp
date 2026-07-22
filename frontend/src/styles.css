@@ -165,6 +165,14 @@ body {
   flex-wrap: wrap;
   gap: 0.4rem;
 }
+.agent-suggest {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
 .attach-btn {
   background: var(--panel);
   color: var(--text);

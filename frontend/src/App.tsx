@@ -11,6 +11,7 @@ import {
 } from "./api";
 import { useAutoScroll } from "./lib/useAutoScroll";
 import { extractBrdFill } from "./lib/brdFill";
+import { suggestAgent } from "./lib/agentSuggest";
 import { AgentProfilesModal } from "./components/AgentProfilesModal";
 import { ProvidersModal } from "./components/ProvidersModal";
 import { MessageView } from "./components/MessageView";
@@ -52,12 +53,15 @@ export function App() {
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [input, setInput] = useState("");
   const [models, setModels] = useState<ModelOption[]>(FALLBACK_MODELS);
-  const [model, setModel] = useState(PREFERRED_DEFAULT);
+  // 模型與 Agent 選擇持久化:重新整理頁面不重置(曾因重置默默用錯 Agent)
+  const [model, setModel] = useState(() => localStorage.getItem("llmagent.model") ?? PREFERRED_DEFAULT);
   const [sending, setSending] = useState(false);
   const [tab, setTab] = useState<Tab>("artifacts");
   const [modal, setModal] = useState<null | "word" | "code" | "settings" | "profiles" | "providers">(null);
   const [profiles, setProfiles] = useState<AgentProfile[]>([]);
-  const [profileId, setProfileId] = useState<string>(""); // "" = 全域預設 prompt
+  const [profileId, setProfileId] = useState<string>(
+    () => localStorage.getItem("llmagent.profileId") ?? "", // "" = 全域預設 prompt
+  );
   const [uploadedDoc, setUploadedDoc] = useState<{ url: string; name: string } | null>(null);
   const [attachments, setAttachments] = useState<{ fileId: string; filename: string }[]>([]);
   const [wordTemplate, setWordTemplate] = useState<{ fileId: string; filename: string } | null>(null);
@@ -68,10 +72,23 @@ export function App() {
   const convKey = useRef<string>(""); // model+profile;變更時開新對話
   const esRef = useRef<EventSource | null>(null);
 
-  // Agent Profile 清單(WP2-T6)
+  // Agent Profile 清單(WP2-T6);還原的選擇若已不存在(如 DB 重建)則退回預設
   useEffect(() => {
-    fetchAgentProfiles().then(setProfiles).catch(() => {});
+    fetchAgentProfiles()
+      .then((list) => {
+        setProfiles(list);
+        setProfileId((cur) => (cur && !list.some((p) => p.id === cur) ? "" : cur));
+      })
+      .catch(() => {});
   }, [modal]); // 管理視窗關閉後重新載入
+
+  // 選擇持久化(localStorage)
+  useEffect(() => {
+    localStorage.setItem("llmagent.model", model);
+  }, [model]);
+  useEffect(() => {
+    localStorage.setItem("llmagent.profileId", profileId);
+  }, [profileId]);
 
   // 開啟時動態拉取 ICA 模型清單(WP2-T2);失敗則沿用後備清單。
   useEffect(() => {
@@ -104,6 +121,33 @@ export function App() {
     () => (lastAssistant && !lastAssistant.streaming ? extractBrdFill(lastAssistant.content) : null),
     [lastAssistant],
   );
+
+  // 一鍵步驟二:上則回覆含 Gherkin 時,「📄 產生 BRD」自動改用 BRD Agent 送出
+  const brdProfile = useMemo(
+    () => profiles.find((p) => p.name === "BRD 業務文件 Agent"),
+    [profiles],
+  );
+  const gherkinBlocks = useMemo(
+    () =>
+      lastAssistant && !lastAssistant.streaming
+        ? lastAssistant.content.match(/```gherkin[\s\S]*?```/g)
+        : null,
+    [lastAssistant],
+  );
+
+  function sendBrd() {
+    if (!brdProfile || !gherkinBlocks?.length) return;
+    const text =
+      "請依據以下 Gherkin 產出 BRD 套版資料:\n\n" + gherkinBlocks.join("\n\n");
+    send(text, brdProfile.id);
+  }
+
+  // Agent 建議(AI 建議 + 使用者確認):偵測輸入意圖,建議條按「改用」才切換
+  const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null);
+  const agentSuggestion = useMemo(() => {
+    const s = suggestAgent(input, attachments.map((a) => a.filename), profiles, profileId);
+    return s && s.id !== dismissedSuggestion ? s : null;
+  }, [input, attachments, profiles, profileId, dismissedSuggestion]);
   const wordTitle =
     brdFill?.values?.DOC_TITLE ?? brdFill?.values?.PROJECT_NAME ??
     (uploadedDoc?.name ?? docTitle(lastAssistant?.content ?? ""));
@@ -112,20 +156,23 @@ export function App() {
     setMessages((prev) => prev.map((m) => (m.id === id ? fn(m) : m)));
   }
 
-  async function send() {
-    const text = input.trim();
+  /** 送出訊息。textArg / profileOverride 供一鍵流程(如「產生 BRD」)指定內容與 Agent。 */
+  async function send(textArg?: string, profileOverride?: string) {
+    const text = (textArg ?? input).trim();
     if (!text || sending) return;
     setSending(true);
-    setInput("");
+    if (textArg === undefined) setInput("");
+    const effProfile = profileOverride ?? profileId;
+    if (profileOverride !== undefined) setProfileId(profileOverride); // 同步下拉顯示
 
     try {
       const vars = { project_name: "llm-webapp", gherkin_locale: "zh-TW" };
       if (!convId.current) {
-        convId.current = await createConversation(model, profileId || undefined, vars);
-        convKey.current = `${model}|${profileId}`;
+        convId.current = await createConversation(model, effProfile || undefined, vars);
+        convKey.current = `${model}|${effProfile}`;
       }
       // 對話中切換模型 / Agent(WP3-T3):同一對話,覆寫隨訊息送出
-      const key = `${model}|${profileId}`;
+      const key = `${model}|${effProfile}`;
       const switched = convKey.current !== key;
       convKey.current = key;
       const attached = attachments;
@@ -146,11 +193,12 @@ export function App() {
         convId.current,
         text,
         switched ? model : undefined,
-        switched && profileId ? profileId : undefined,
-        switched && profileId ? vars : undefined,
+        switched && effProfile ? effProfile : undefined,
+        switched && effProfile ? vars : undefined,
         attached.length > 0 ? attached.map((a) => a.fileId) : undefined,
       );
       setAttachments([]);
+      setDismissedSuggestion(null); // 新一輪訊息允許重新建議
 
       esRef.current = streamMessage(messageId, {
         onThinking: (d) => patch(assistantId, (m) => ({ ...m, thinking: m.thinking + d })),
@@ -263,6 +311,23 @@ export function App() {
             ))}
           </div>
           <div className="composer">
+            {agentSuggestion && !sending && (
+              <div className="agent-suggest">
+                💡 這則訊息看起來適合「{agentSuggestion.name}」
+                <button
+                  className="expand-btn"
+                  onClick={() => setProfileId(agentSuggestion.id)}
+                >
+                  改用
+                </button>
+                <button
+                  className="expand-btn"
+                  onClick={() => setDismissedSuggestion(agentSuggestion.id)}
+                >
+                  忽略
+                </button>
+              </div>
+            )}
             {attachments.length > 0 && (
               <div className="attachment-chips">
                 {attachments.map((a) => (
@@ -312,7 +377,15 @@ export function App() {
               rows={3}
               disabled={sending}
             />
-            <button onClick={send} disabled={sending || !input.trim()}>
+            <button
+              className="attach-btn"
+              title="步驟二一鍵產生:以 BRD 業務文件 Agent 依上則回覆的 Gherkin 產出套版資料,完成後於「Word 預覽」看到原模板填寫結果"
+              onClick={sendBrd}
+              disabled={sending || !brdProfile || !gherkinBlocks?.length}
+            >
+              📄 產生 BRD
+            </button>
+            <button onClick={() => send()} disabled={sending || !input.trim()}>
               {sending ? "串流中…" : "送出"}
             </button>
           </div>
